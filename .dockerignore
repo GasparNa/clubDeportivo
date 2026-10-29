@@ -1,0 +1,41 @@
+# =====================================================================
+# Contexto de build (raíz del monorepo)
+# =====================================================================
+# Dependencias y artefactos: se generan dentro de la imagen.
+node_modules
+**/node_modules
+backend/dist
+backend/coverage
+backend/*.tsbuildinfo
+frontend/.next
+frontend/out
+frontend/coverage
+**/coverage
+
+# Entorno y secretos
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Datos locales
+pgdata
+.docker
+
+# VCS / editor / CI
+.git
+.gitignore
+.github
+.vscode
+.idea
+.obsidian
+*.log
+
+# Documentación y especificaciones (no hacen falta para buildear)
+docs
+openspec
+infra
+*.md
+
+# Lockfile duplicado del frontend: manda el de la raíz
+frontend/pnpm-lock.yaml

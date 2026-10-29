@@ -1,0 +1,39 @@
+# Copiar a terraform.tfvars (ignorado por git) y ajustar.
+aws_region    = "us-east-1"
+project_name  = "club-deportivo"
+environment   = "production"
+
+# Base de datos
+db_instance_class      = "db.t4g.micro"
+db_allocated_storage   = 20
+db_engine_version      = "16"
+db_deletion_protection = true
+db_connection_limit    = 5
+
+# App Runner
+backend_image_tag  = "latest"
+web_image_tag      = "latest"
+apprunner_cpu      = "0.25 vCPU"
+apprunner_memory   = "0.5 GB"
+apprunner_min_size = 1
+apprunner_max_size = 3
+web_min_size       = 1
+web_max_size       = 3
+
+# Dominio (dejar domain_name vacío para usar solo las URLs de App Runner)
+domain_name    = ""
+hosted_zone_id = ""
+api_subdomain  = "api"
+web_subdomain  = "app"
+
+# CORS adicional (ej. dominio de Vercel durante la transición)
+extra_cors_origins = ""
+
+# GitHub
+github_repository            = "marianalinares-del/club-deportivo"
+github_branch                = "main"
+create_github_oidc_provider  = true
+github_oidc_provider_arn     = ""
+
+# Alarmas
+alarm_email = ""

@@ -1,0 +1,8 @@
+# Contexto: frontend/ (si se buildea con -f frontend/Dockerfile frontend)
+node_modules
+.next
+out
+coverage
+.env
+.env.*
+pnpm-lock.yaml

@@ -1,0 +1,18 @@
+{
+	"dependencies": {
+		"@fission-ai/openspec": "^1.12.0"
+	},
+	"devDependencies": {
+		"typescript": "^7.0.2"
+	},
+	"scripts": {
+		"postinstall": "prisma skills sync || exit 0",
+		"db:up": "./scripts/db-up.sh",
+		"db:down": "docker compose down",
+		"db:reset": "./scripts/db-reset.sh",
+		"db:psql": "./scripts/db-psql.sh",
+		"db:seed": "./scripts/db-seed.sh",
+		"db:baseline": "./scripts/db-baseline.sh",
+		"db:logs": "docker compose logs -f db"
+	}
+}

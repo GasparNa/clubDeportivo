@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build / dist
+dist/
+build/
+.next/
+out/
+
+# Env & secrets
+.env
+.env.local
+.env*.local
+
+# Tests
+coverage/
+.nyc_output/
+
+# IDEs / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Supabase / misc
+supabase/.temp/
+*.sqlite
+
+# Docker / base de datos local
+pgdata/
+.docker/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/.terraform.tfstate.lock.info
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/terraform.tfvars
+infra/terraform/backend.hcl
+infra/terraform/*.auto.tfvars
+infra/terraform/crash.log
+
+.obsidian

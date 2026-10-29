@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-17
+# Change de scaffolding sin artefactos: se marca skip_specs para que la
+# validación estricta de CI no falle por no tener deltas. No implementa
+# cambios de comportamiento.
+skip_specs: true

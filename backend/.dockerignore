@@ -1,0 +1,7 @@
+# Contexto: backend/ (si se buildea con -f backend/Dockerfile backend)
+node_modules
+dist
+coverage
+*.tsbuildinfo
+.env
+.env.*

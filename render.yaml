@@ -1,0 +1,39 @@
+# ⚠️ OBSOLETO para el despliegue objetivo.
+# El despliegue de producción es Docker en AWS (App Runner + RDS), definido en
+# infra/terraform/ y documentado en docs/despliegue-aws.md.
+# Este blueprint se conserva como referencia histórica del camino Render y no
+# debe usarse para nuevos entornos.
+#
+# Blueprint para desplegar el backend (NestJS) en Render.
+# Uso: en Render, "New" → "Blueprint" → seleccionar este repositorio.
+# Las variables marcadas con sync: false se cargan desde el dashboard (son secretas).
+services:
+  - type: web
+    name: club-deportivo-api
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: >-
+      pnpm install --frozen-lockfile --prod=false &&
+      pnpm --filter club-deportivo-backend run prisma:generate &&
+      pnpm --filter club-deportivo-backend run build
+    startCommand: node backend/dist/main.js
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # PORT lo inyecta Render; el backend escucha en 0.0.0.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION
+        value: 24h
+      # Pooler de Supabase en IPv4: usar el SESSION pooler (puerto 5432) porque
+      # el backend es un proceso Node persistente. El host directo db.[REF]:5432 no
+      # resuelve en IPv4 y el transaction pooler (6543) dio P1001 intermitente.
+      - key: DATABASE_URL
+        sync: false
+      # Dominio del frontend en Vercel
+      - key: CORS_ORIGINS
+        sync: false

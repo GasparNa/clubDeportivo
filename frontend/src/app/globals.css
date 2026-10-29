@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Club Deportivo — Design Tokens
+   Basado en docs/colores.md
+   ============================================================ */
+
+/* --- Modo Claro: "Cancha de Día" (default) --- */
+:root {
+  --color-primary: #0B7A55;
+  --color-primary-hover: #065F3E;
+  --color-secondary: #0F172A;
+  --color-accent: #D97706;
+  --color-background: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F1F5F9;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-border: #CBD5E1;
+  --color-success: #15803D;
+  --color-warning: #B45309;
+  --color-error: #DC2626;
+  --color-info: #2563EB;
+}
+
+/* --- Modo Oscuro: "Cancha de Noche" --- */
+.dark,
+[data-theme="dark"] {
+  --color-primary: #34D399;
+  --color-primary-hover: #6EE7B7;
+  --color-secondary: #93C5FD;
+  --color-accent: #FCD34D;
+  --color-background: #070F1E;
+  --color-surface: #111F35;
+  --color-surface-2: #1A2E4D;
+  --color-text-primary: #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-border: #1E3A5F;
+  --color-success: #4ADE80;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+  --color-info: #60A5FA;
+}
+
+/* prefers-color-scheme: dark (sin toggle manual) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-primary: #34D399;
+    --color-primary-hover: #6EE7B7;
+    --color-secondary: #93C5FD;
+    --color-accent: #FCD34D;
+    --color-background: #070F1E;
+    --color-surface: #111F35;
+    --color-surface-2: #1A2E4D;
+    --color-text-primary: #F1F5F9;
+    --color-text-secondary: #94A3B8;
+    --color-border: #1E3A5F;
+    --color-success: #4ADE80;
+    --color-warning: #FBBF24;
+    --color-error: #F87171;
+    --color-info: #60A5FA;
+  }
+}
+
+/* --- Tailwind v4 @theme --- */
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-border: var(--color-border);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  --color-info: var(--color-info);
+  --font-sans: var(--font-geist-sans, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, monospace);
+}
+
+/* --- Base --- */
+:root {
+  color-scheme: light;
+}
+
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* --- Accesibilidad: screen-reader-only --- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* --- Accesibilidad: skip-link visible on focus --- */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: var(--color-surface);
+  text-decoration: none;
+  border-radius: 0 0 0.25rem 0;
+}
+
+.skip-link:focus {
+  top: 0;
+}

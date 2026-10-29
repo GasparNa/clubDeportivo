@@ -1,0 +1,253 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public"]
+}
+
+/// Entidad raíz de identidad
+model Persona {
+  id_persona       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dni              String   @unique
+  cuil             String?  @unique
+  nombre           String
+  apellido         String
+  fecha_nacimiento DateTime? @db.Date
+  creado_en        DateTime @default(now()) @db.Timestamptz()
+  actualizado_en   DateTime @default(now()) @db.Timestamptz()
+
+  contactos     ContactoPersona[]
+  direcciones   DireccionPersona[]
+  usuario       Usuario?
+  reservas      Reserva[]
+  solicitudes   SolicitudPermiso[]
+
+  @@index([apellido, nombre])
+  @@schema("public")
+  @@map("personas")
+}
+
+/// Emails y teléfonos de una persona
+model ContactoPersona {
+  id_contacto    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_persona     String    @db.Uuid
+  tipo_contacto  String
+  valor_contacto String
+  estado         String    @default("ACTIVO")
+  inactivated_at DateTime? @db.Timestamptz()
+  creado_en      DateTime  @default(now()) @db.Timestamptz()
+  actualizado_en DateTime  @default(now()) @db.Timestamptz()
+
+  persona         Persona   @relation(fields: [id_persona], references: [id_persona], onDelete: Cascade)
+  usuarioLogin    Usuario[] @relation("ContactoLogin")
+
+  @@unique([id_persona, tipo_contacto, valor_contacto])
+  @@index([id_persona])
+  @@schema("public")
+  @@map("contactos_persona")
+}
+
+/// Direcciones físicas asociadas a una persona
+model DireccionPersona {
+  id_direccion   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_persona     String    @db.Uuid
+  tipo_direccion String
+  calle          String?
+  numero         String?
+  piso           String?
+  departamento   String?
+  codigo_postal  String?
+  localidad      String?
+  provincia      String?
+  pais           String    @default("Argentina")
+  estado         String    @default("ACTIVO")
+  inactivated_at DateTime? @db.Timestamptz()
+  creado_en      DateTime  @default(now()) @db.Timestamptz()
+  actualizado_en DateTime  @default(now()) @db.Timestamptz()
+
+  persona Persona @relation(fields: [id_persona], references: [id_persona], onDelete: Cascade)
+
+  @@index([id_persona])
+  @@schema("public")
+  @@map("direcciones_persona")
+}
+
+/// Cuenta del sistema asociada 1:1 con una persona
+model Usuario {
+  id_usuario                 String   @id @db.Uuid
+  id_contacto_login          String?  @unique @db.Uuid
+  rol                        String   @default("SOCIO")
+  estado                     String   @default("PENDIENTE")
+  password_hash              String?
+  incumplimientos_equipamiento Int    @default(0)
+  creado_en                  DateTime @default(now()) @db.Timestamptz()
+  actualizado_en             DateTime @default(now()) @db.Timestamptz()
+
+  persona              Persona              @relation(fields: [id_usuario], references: [id_persona], onDelete: Restrict)
+  contactoLogin        ContactoPersona?     @relation("ContactoLogin", fields: [id_contacto_login], references: [id_contacto])
+  solicitudesGestionadas SolicitudPermiso[] @relation("Gestor")
+  solicitudesGeneradas   SolicitudPermiso[] @relation("UsuarioGenerado")
+  registrosAuditoria   RegistroAuditoria[]
+
+  @@schema("public")
+  @@map("usuarios")
+}
+
+/// Solicitudes de alta de una persona como usuario/socio
+model SolicitudPermiso {
+  id_solicitud       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_persona         String    @db.Uuid
+  origen             String
+  estado             String    @default("PENDIENTE")
+  id_gestor_aprobador String?  @db.Uuid
+  id_usuario_generado String?  @unique @db.Uuid
+  fecha_solicitud    DateTime  @default(now()) @db.Timestamptz()
+  fecha_resolucion   DateTime? @db.Timestamptz()
+
+  persona          Persona  @relation(fields: [id_persona], references: [id_persona], onDelete: Restrict)
+  gestorAprobador  Usuario? @relation("Gestor", fields: [id_gestor_aprobador], references: [id_usuario])
+  usuarioGenerado  Usuario? @relation("UsuarioGenerado", fields: [id_usuario_generado], references: [id_usuario])
+
+  @@schema("public")
+  @@map("solicitudes_permiso")
+}
+
+/// Registro histórico de eventos del sistema (append-only)
+model RegistroAuditoria {
+  id_registro String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_tipo  String    @default("SISTEMA")
+  id_usuario  String?   @db.Uuid
+  evento      String
+  entidad     String
+  id_entidad  String?   @db.Uuid
+  detalle     Json?
+  fecha       DateTime  @default(now()) @db.Timestamptz()
+
+  usuario Usuario? @relation(fields: [id_usuario], references: [id_usuario], onDelete: SetNull)
+
+  @@index([id_usuario, fecha(sort: Desc)])
+  @@index([entidad, id_entidad, fecha(sort: Desc)])
+  @@index([fecha(sort: Desc)])
+  @@schema("public")
+  @@map("registros_auditoria")
+}
+
+/// Disciplinas deportivas
+model Disciplina {
+  id_disciplina String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre        String   @unique
+  descripcion   String?
+  creado_en     DateTime @default(now()) @db.Timestamptz()
+
+  canchas       Cancha[]
+  equipamientos Equipamiento[]
+
+  @@schema("public")
+  @@map("disciplinas")
+}
+
+/// Canchas por disciplina
+model Cancha {
+  id_cancha     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_disciplina String   @db.Uuid
+  nombre        String
+  superficie    String?
+  precio_base   Decimal  @db.Decimal(10, 2)
+  estado        String   @default("DISPONIBLE")
+  creado_en     DateTime @default(now()) @db.Timestamptz()
+
+  disciplina      Disciplina       @relation(fields: [id_disciplina], references: [id_disciplina])
+  franjasHorarias FranjaHoraria[]
+
+  @@unique([id_disciplina, nombre])
+  @@index([id_disciplina, estado])
+  @@schema("public")
+  @@map("canchas")
+}
+
+/// Franjas horarias / grilla de turnos
+model FranjaHoraria {
+  id_franja   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_cancha   String   @db.Uuid
+  dia_semana  Int      @db.SmallInt
+  hora_inicio DateTime @db.Time()
+  hora_fin    DateTime @db.Time()
+  creado_en   DateTime @default(now()) @db.Timestamptz()
+
+  cancha   Cancha    @relation(fields: [id_cancha], references: [id_cancha], onDelete: Cascade)
+  reservas Reserva[]
+
+  @@unique([id_cancha, dia_semana, hora_inicio])
+  @@index([id_cancha, dia_semana, hora_inicio])
+  @@schema("public")
+  @@map("franjas_horarias")
+}
+
+/// Equipamiento deportivo
+model Equipamiento {
+  id_equipamiento   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_disciplina     String   @db.Uuid
+  nombre            String
+  stock_total       Int
+  stock_disponible  Int
+  precio_alquiler   Decimal  @db.Decimal(10, 2)
+  creado_en         DateTime @default(now()) @db.Timestamptz()
+
+  disciplina       Disciplina                  @relation(fields: [id_disciplina], references: [id_disciplina])
+  detallesAlquiler DetalleAlquilerEquipamiento[]
+
+  @@unique([id_disciplina, nombre])
+  @@index([id_disciplina])
+  @@schema("public")
+  @@map("equipamientos")
+}
+
+/// Reservas de canchas
+model Reserva {
+  id_reserva   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_franja    String    @db.Uuid
+  fecha        DateTime  @db.Date
+  id_persona   String    @db.Uuid
+  estado       String    @default("CONFIRMADA")
+  origen       String    @default("AUTOGESTIONADA")
+  monto_total  Decimal   @default(0) @db.Decimal(10, 2)
+  creado_en    DateTime  @default(now()) @db.Timestamptz()
+  actualizado_en DateTime @default(now()) @db.Timestamptz()
+  cancelado_en DateTime? @db.Timestamptz()
+
+  franjaHoraria      FranjaHoraria               @relation(fields: [id_franja], references: [id_franja])
+  persona            Persona                     @relation(fields: [id_persona], references: [id_persona], onDelete: Restrict)
+  detallesAlquiler   DetalleAlquilerEquipamiento[]
+
+  @@index([fecha])
+  @@index([id_persona, fecha(sort: Desc)])
+  @@index([estado, fecha])
+  @@schema("public")
+  @@map("reservas")
+}
+
+/// Detalle de alquiler de equipamiento
+model DetalleAlquilerEquipamiento {
+  id_detalle                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_reserva                String    @db.Uuid
+  id_equipamiento           String    @db.Uuid
+  cantidad                  Int
+  precio_unitario           Decimal?  @db.Decimal(10, 2)
+  subtotal                  Decimal?  @db.Decimal(10, 2)
+  fecha_devolucion_estimada DateTime? @db.Timestamptz()
+  fecha_devolucion_real     DateTime? @db.Timestamptz()
+  estado_devolucion         String    @default("PENDIENTE")
+  creado_en                 DateTime  @default(now()) @db.Timestamptz()
+
+  reserva      Reserva      @relation(fields: [id_reserva], references: [id_reserva], onDelete: Cascade)
+  equipamiento Equipamiento @relation(fields: [id_equipamiento], references: [id_equipamiento])
+
+  @@unique([id_reserva, id_equipamiento])
+  @@index([id_reserva])
+  @@schema("public")
+  @@map("detalle_alquiler_equipamiento")
+}
