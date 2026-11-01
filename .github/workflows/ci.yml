@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calidad:
+    name: Lint y pruebas unitarias
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.8.1
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Ejecutar lint del backend
+        run: pnpm --filter club-deportivo-backend run lint
+
+      - name: Ejecutar lint del frontend
+        run: pnpm --filter frontend run lint
+
+      - name: Ejecutar pruebas unitarias
+        run: pnpm --filter club-deportivo-backend run test -- --runInBand
