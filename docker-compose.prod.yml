@@ -1,0 +1,118 @@
+name: club-deportivo-prod
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: club-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # Soporte para HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    networks:
+      - club-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: club-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-club_deportivo}
+      POSTGRES_USER: ${POSTGRES_USER:-club_deportivo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD en .env.prod}
+      TZ: America/Argentina/Buenos_Aires
+      PGTZ: America/Argentina/Buenos_Aires
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - club-network
+
+  backend:
+    image: ${BACKEND_IMAGE:-club-backend:latest}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    container_name: club-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-club_deportivo}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-club_deportivo}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Definir JWT_SECRET en .env.prod}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-24h}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://clubdeportivo.alquilerespunilla.com.ar}
+      RUN_MIGRATIONS: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - club-network
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-club-frontend:latest}
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: runtime
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://clubdeportivo.alquilerespunilla.com.ar/api/v1}
+    container_name: club-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - club-network
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  club-network:
+    driver: bridge

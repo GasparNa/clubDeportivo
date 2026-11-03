@@ -1,0 +1,52 @@
+{
+    # Email para registro y renovación automática de certificados SSL con Let's Encrypt / ZeroSSL
+    email admin@alquilerespunilla.com.ar
+
+    # Logging estructurado en formato JSON a stdout
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}
+
+# Dominio oficial en producción
+clubdeportivo.alquilerespunilla.com.ar {
+    # Compresión moderna automática de respuestas HTTP (zstd y gzip)
+    encode zstd gzip
+
+    # Cabeceras de seguridad recomendadas
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # 1. API Backend (NestJS en puerto 3001)
+    # Enruta todas las solicitudes /api/* directamente al servicio 'backend'
+    handle /api/* {
+        reverse_proxy backend:3001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+
+            transport http {
+                response_header_timeout 60s
+            }
+        }
+    }
+
+    # 2. Frontend Web (Next.js Standalone en puerto 3000)
+    # Enruta el resto de las solicitudes al servicio 'frontend'
+    handle {
+        reverse_proxy frontend:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}

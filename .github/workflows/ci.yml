@@ -2,14 +2,31 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'infra/**'
+      - '.gitignore'
+      - 'render.yaml'
   pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'infra/**'
+      - '.gitignore'
+      - 'render.yaml'
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   calidad:
@@ -33,6 +50,9 @@ jobs:
 
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
+
+      - name: Validar especificaciones OpenSpec
+        run: pnpm exec openspec validate --all --strict
 
       - name: Ejecutar lint del backend
         run: pnpm --filter club-deportivo-backend run lint
