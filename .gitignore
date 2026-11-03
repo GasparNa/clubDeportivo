@@ -50,3 +50,5 @@ infra/terraform/*.auto.tfvars
 infra/terraform/crash.log
 
 .obsidian
+
+club.pem

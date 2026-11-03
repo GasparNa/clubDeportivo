@@ -2,58 +2,79 @@
 # =====================================================================
 # Script de despliegue en servidor AWS (EC2 / Lightsail con Docker + Caddy)
 # Uso local en el servidor: ./scripts/deploy-aws.sh
+# Requiere: BACKEND_IMAGE y FRONTEND_IMAGE exportadas (las define el CD).
 # =====================================================================
-set -euo pipefail
+set -Eeuo pipefail
 
 APP_DIR="${APP_DIR:-/opt/club-deportivo}"
 COMPOSE_FILE="${APP_DIR}/docker-compose.prod.yml"
-DOMAIN="clubdeportivo.alquilerespunilla.com.ar"
+ENV_FILE="${APP_DIR}/.env.prod"
+DOMAIN="${DOMAIN_NAME:-clubdeportivo.alquilerespunilla.com.ar}"
 
-echo "🚀 [$(date -Iseconds)] Iniciando despliegue de Club Deportivo..."
+log() { printf '\n[%s] %s\n' "$(date -Iseconds)" "$*"; }
 
-# 1. Verificar existencia del directorio y archivos requeridos
-if [ ! -d "$APP_DIR" ]; then
-  echo "❌ Error: Directorio de aplicación $APP_DIR no existe."
+on_error() {
+  local exit_code=$?
+  echo "❌ Despliegue fallido (código $exit_code)." >&2
+  echo "--- docker compose ps ---" >&2
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps >&2 || true
+  echo "--- últimos logs (caddy, backend, frontend) ---" >&2
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail 50 caddy backend frontend >&2 || true
+  exit "$exit_code"
+}
+trap on_error ERR
+
+log "Iniciando despliegue de Club Deportivo..."
+
+# 1. Validaciones previas (fallan rápido y con mensaje claro)
+command -v docker >/dev/null || { echo "❌ Docker no está instalado."; exit 1; }
+docker compose version >/dev/null || { echo "❌ Docker Compose v2 no está disponible."; exit 1; }
+
+[ -d "$APP_DIR" ] || { echo "❌ El directorio $APP_DIR no existe."; exit 1; }
+[ -f "$COMPOSE_FILE" ] || { echo "❌ No se encontró $COMPOSE_FILE."; exit 1; }
+[ -f "$ENV_FILE" ] || {
+  echo "❌ No se encontró $ENV_FILE."
+  echo "   Crearlo con POSTGRES_PASSWORD y JWT_SECRET antes de desplegar (ver docs/despliegueContinuo.md)."
   exit 1
-fi
+}
+
+: "${BACKEND_IMAGE:?Definir BACKEND_IMAGE (ej: ghcr.io/gasparna/clubdeportivo/backend:latest)}"
+: "${FRONTEND_IMAGE:?Definir FRONTEND_IMAGE (ej: ghcr.io/gasparna/clubdeportivo/frontend:latest)}"
+export BACKEND_IMAGE FRONTEND_IMAGE
 
 cd "$APP_DIR"
 
-if [ ! -f "$COMPOSE_FILE" ]; then
-  echo "❌ Error: $COMPOSE_FILE no encontrado."
-  exit 1
-fi
+log "Usando imágenes:"
+echo "  backend  → ${BACKEND_IMAGE}"
+echo "  frontend → ${FRONTEND_IMAGE}"
 
-if [ ! -f ".env.prod" ]; then
-  echo "⚠️ Advertencia: .env.prod no existe en $APP_DIR. Verifique las variables de entorno."
-fi
+# 2. Validar que el compose resuelva con las variables actuales
+log "Validando configuración de Docker Compose..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config -q
 
-# 2. Descargar o actualizar imágenes más recientes
-echo "📦 Descargando imágenes de contenedores..."
-docker compose -f "$COMPOSE_FILE" --env-file .env.prod pull || echo "ℹ️ Continuará con build local si no se usan imágenes remotas."
+# 3. Descargar las imágenes publicadas por el CD
+log "Descargando imágenes de contenedores..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
 
-# 3. Levantar servicios en segundo plano con recreate si hubo cambios
-echo "🔄 Levantando servicios con Docker Compose..."
-docker compose -f "$COMPOSE_FILE" --env-file .env.prod up -d --remove-orphans
+# 4. Levantar servicios y esperar a que los healthchecks estén sanos
+log "Levantando servicios y esperando healthchecks (máx. 180s)..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans --wait --wait-timeout 180
 
-# 4. Esperar y verificar estado de salud
-echo "🩺 Verificando estado de los servicios..."
+# 5. Verificar el endpoint público a través de Caddy (incluye emisión/renovación TLS)
+log "Verificando estado de los servicios..."
 ATTEMPTS=0
-MAX_ATTEMPTS=12
+MAX_ATTEMPTS=24
 
-until curl -kfsS "https://${DOMAIN}/api/v1/health" > /dev/null 2>&1 || [ $ATTEMPTS -ge $MAX_ATTEMPTS ]; do
+until curl -fsS --max-time 10 "https://${DOMAIN}/api/v1/health" > /dev/null 2>&1 || [ $ATTEMPTS -ge $MAX_ATTEMPTS ]; do
   ATTEMPTS=$((ATTEMPTS + 1))
   echo "⏳ Esperando que el backend responda en Caddy (intento $ATTEMPTS/$MAX_ATTEMPTS)..."
   sleep 5
 done
 
 if [ $ATTEMPTS -ge $MAX_ATTEMPTS ]; then
-  echo "⚠️ El endpoint público https://${DOMAIN}/api/v1/health no respondió en el tiempo límite."
-  echo "Estado de los contenedores:"
-  docker compose -f "$COMPOSE_FILE" ps
-  echo "Últimos logs de caddy y backend:"
-  docker compose -f "$COMPOSE_FILE" logs --tail 30 caddy backend
+  echo "❌ El endpoint público https://${DOMAIN}/api/v1/health no respondió en el tiempo límite."
   exit 1
 fi
 
-echo "✅ Despliegue completado con éxito en https://${DOMAIN}/"
+log "✅ Despliegue completado con éxito en https://${DOMAIN}/"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps

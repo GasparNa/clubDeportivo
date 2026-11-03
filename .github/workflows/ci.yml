@@ -60,5 +60,17 @@ jobs:
       - name: Ejecutar lint del frontend
         run: pnpm --filter frontend run lint
 
+      - name: Generar cliente Prisma
+        run: pnpm --filter club-deportivo-backend run prisma:generate
+
+      - name: Verificar tipos del backend
+        run: pnpm --filter club-deportivo-backend run typecheck
+
+      - name: Validar compose de producción
+        env:
+          POSTGRES_PASSWORD: ci-placeholder
+          JWT_SECRET: ci-placeholder-ci-placeholder-32chars
+        run: docker compose -f docker-compose.prod.yml config -q
+
       - name: Ejecutar pruebas unitarias
         run: pnpm --filter club-deportivo-backend exec jest --runInBand

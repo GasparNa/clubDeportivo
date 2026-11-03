@@ -64,13 +64,14 @@ Los workflows viven en `.github/workflows/`:
 
 | Workflow | Disparador | Qué hace |
 |---|---|---|
-| `ci.yml` | Push a `main`/`develop` y PR a `main` | Lint, typecheck, tests, `openspec validate --all --strict`, build de imágenes y validación de compose |
-| `docker-build-push.yml` | Push a `main` o manual | Buildx `linux/amd64` → ECR con tags por SHA y `latest` |
-| `deploy-aws.yml` | Al terminar el build en `main` o manual | Deploy del backend, smoke test y deploy del frontend en App Runner |
+| `ci.yml` | Push a `main`/`develop` y PR a `main` | Lint, typecheck, tests y `openspec validate --all --strict` |
+| `cd.yml` | Al terminar `ci.yml` en `main` (solo si fue exitoso) o `workflow_dispatch` | Buildx de backend y frontend → push a GHCR → deploy por SSH a la EC2 (Caddy + Docker Compose) → smoke test |
 
-Los jobs de AWS se omiten si no están definidas las variables
-`AWS_DEPLOY_ENABLED`, `AWS_ROLE_ARN` y `AWS_REGION`. El CI (lint, tests y
-OpenSpec) corre siempre.
+El deploy requiere los secretos `DEPLOY_HOST`, `DEPLOY_USER` y `DEPLOY_KEY`
+(y opcional `DEPLOY_PORT`). Si faltan, el job falla de forma explícita. El
+servidor se aprovisiona una sola vez (directorio `/opt/club-deportivo`,
+`.env.prod` y swap); el runbook está en
+[`docs/despliegueContinuo.md`](docs/despliegueContinuo.md).
 
 ## Requisitos funcionales clave
 
@@ -163,12 +164,15 @@ docker compose stop backend frontend
 
 ## Despliegue en AWS
 
-La infraestructura objetivo (App Runner + RDS + ECR + Terraform) está en
-[`infra/terraform/`](infra/terraform/) y se documenta en
-[`docs/despliegue-aws.md`](docs/despliegue-aws.md).
+El despliegue vigente corre en una instancia EC2 con Docker Compose y Caddy
+como reverse proxy/TLS. El runbook completo (secretos, aprovisionamiento del
+servidor, DNS y rollback) está en
+[`docs/despliegueContinuo.md`](docs/despliegueContinuo.md).
 
-> ⚠️ AWS dejó de aceptar clientes nuevos en App Runner (octubre de 2026).
-> Verificar el acceso antes de aplicar; la alternativa es ECS Express Mode.
+La infraestructura histórica de App Runner + RDS + ECR, definida en
+[`infra/terraform/`](infra/terraform/) y documentada en
+[`docs/despliegue-aws.md`](docs/despliegue-aws.md), queda como legado no
+aplicado. AWS dejó de aceptar clientes nuevos en App Runner (octubre de 2026).
 
 ## Contribución
 
@@ -183,5 +187,6 @@ Trabajo grupal colaborativo mediante Pull Requests. Toda funcionalidad debe:
 ## Estado del proyecto
 
 MVP con backend, frontend, base de datos local en Docker, tests, CI y
-documentación de despliegue. La infraestructura AWS está definida en Terraform,
-pendiente de aplicar contra una cuenta real (Fase 0).
+despliegue continuo por SSH a una EC2 con Caddy + Docker Compose
+([`docs/despliegueContinuo.md`](docs/despliegueContinuo.md)). La infraestructura
+Terraform/App Runner queda como legado pendiente de descartar.
