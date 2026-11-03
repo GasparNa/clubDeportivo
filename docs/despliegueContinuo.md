@@ -157,7 +157,7 @@ Si algo falla:
 |----------------|----------------|
 | `scp-action` | Permisos de `/opt/club-deportivo` (§4.2) |
 | `ssh-action` | Clave, usuario, puerto o `authorized_keys` |
-| `docker compose pull` | Login a GHCR (`GITHUB_TOKEN` con `packages: read/write`) |
+| `docker compose pull` | Login a GHCR (`GITHUB_TOKEN` con `packages: read/write`) o referencia con mayúsculas (`repository name ... must be lowercase`) |
 | `docker compose up` | Falta `.env.prod` o variables obligatorias |
 | Smoke test | DNS/Caddy/certificado o backend no healthy |
 | Backend unhealthy | `docker compose logs backend` (migraciones Prisma con `RUN_MIGRATIONS=true`) |
@@ -172,6 +172,7 @@ Si algo falla:
 - **Preflight del servidor** antes de copiar archivos: verifica que exista `/opt/club-deportivo`, que el usuario SSH pueda escribir, que exista `.env.prod` y que Docker Compose esté disponible. Los mensajes incluyen el comando de corrección.
 - **Login a GHCR sin `|| true`**: si el token no sirve, el deploy falla en vez de continuar.
 - **Smoke test público** con `--max-time` y reintentos contra `/api/v1/health`.
+- **Referencias de imágenes normalizadas a minúsculas.** GHCR/Docker rechazan nombres con mayúsculas (`GasparNa/clubDeportivo`). El paso *Configurar referencias de imágenes* calcula `ghcr.io/$(echo github.repository | tr '[:upper:]' '[:lower:]')` y lo pasa como `BACKEND_IMAGE`/`FRONTEND_IMAGE`. Las imágenes publicadas por `docker/metadata-action` ya son minúsculas; antes el deploy fallaba con `repository name (...) must be lowercase`.
 
 ### 5.2. `scripts/deploy-aws.sh`
 
