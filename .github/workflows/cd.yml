@@ -98,6 +98,13 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v4
 
+      - name: Configurar referencias de imágenes
+        id: images
+        run: |
+          prefix="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "backend=${prefix}/backend:latest" >> "$GITHUB_OUTPUT"
+          echo "frontend=${prefix}/frontend:latest" >> "$GITHUB_OUTPUT"
+
       - name: Verificar secretos de despliegue
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -152,8 +159,8 @@ jobs:
       - name: Ejecutar despliegue remoto en AWS
         uses: appleboy/ssh-action@v1.2.0
         env:
-          BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend:latest
-          FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend:latest
+          BACKEND_IMAGE: ${{ steps.images.outputs.backend }}
+          FRONTEND_IMAGE: ${{ steps.images.outputs.frontend }}
           CR_PAT: ${{ secrets.GITHUB_TOKEN }}
           ACTOR: ${{ github.actor }}
         with:
