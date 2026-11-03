@@ -57,27 +57,13 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-/**
- * Hook que verifica si el usuario actual tiene estado ACTIVO y puede realizar reservas.
- * Lanza error si no está autenticado o no está ACTIVO (para ser capturado por el componente).
- * Durante build/prerender, retorna null para evitar errores.
- */
+/** Verifica si el usuario actual tiene estado ACTIVO y puede realizar reservas. */
 export function useRequireActiveUser(): SessionUser | null {
   const { user, isAuthenticated } = useAuth();
-  
-  // Durante build/prerender (server), isAuthenticated será false
-  // Retornamos null y el componente manejará el caso
-  if (typeof window === "undefined") {
+
+  if (!isAuthenticated || user?.estado !== "ACTIVO") {
     return null;
   }
-  
-  if (!isAuthenticated) {
-    throw new Error("NOT_AUTHENTICATED");
-  }
-  
-  if (!user?.estado || user.estado !== "ACTIVO") {
-    throw new Error("USER_NOT_ACTIVE");
-  }
-  
+
   return user;
 }

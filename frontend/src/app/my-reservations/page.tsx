@@ -24,12 +24,7 @@ const FILTER_OPTIONS: { value: FilterStatus; label: string }[] = [
 function MyReservationsContent() {
   const { user } = useAuth();
   const activeUser = useRequireActiveUser();
-  
-  // Durante build/prerender, activeUser será null
-  if (activeUser === null) {
-    return null;
-  }
-  
+
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterStatus>("ALL");
 
@@ -70,6 +65,10 @@ function MyReservationsContent() {
 
   const activeCount = countActiveReservations(reservas ?? []);
   const canCreate = activeCount < MAX_ACTIVE_RESERVATIONS;
+
+  if (activeUser === null) {
+    return null;
+  }
 
   return (
     <AuthenticatedLayout>
@@ -170,63 +169,5 @@ function MyReservationsContent() {
 }
 
 export default function MyReservationsPage() {
-  try {
-    return <MyReservationsContent />;
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === "NOT_AUTHENTICATED") {
-        return (
-          <AuthenticatedLayout>
-            <div className="py-8 sm:py-12 text-center">
-              <IconAlertTriangle className="h-12 w-12 mx-auto text-warning" />
-              <h2 className="mt-4 text-xl font-semibold text-text-primary">
-                Debes iniciar sesión
-              </h2>
-              <p className="mt-2 text-text-secondary">
-                Para ver tus reservas, necesitas tener una cuenta activa.
-              </p>
-              <div className="mt-6 flex justify-center gap-3">
-                <a
-                  href="/login"
-                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-                >
-                  Iniciar sesión
-                </a>
-                <a
-                  href="/register"
-                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-2"
-                >
-                  Registrarse
-                </a>
-              </div>
-            </div>
-          </AuthenticatedLayout>
-        );
-      }
-      if (error.message === "USER_NOT_ACTIVE") {
-        return (
-          <AuthenticatedLayout>
-            <div className="py-8 sm:py-12 text-center">
-              <IconAlertTriangle className="h-12 w-12 mx-auto text-warning" />
-              <h2 className="mt-4 text-xl font-semibold text-text-primary">
-                Cuenta no activa
-              </h2>
-              <p className="mt-2 text-text-secondary">
-                Tu cuenta no está activa. Contactá a gerencia para activarla.
-              </p>
-              <div className="mt-6 flex justify-center gap-3">
-                <a
-                  href="/profile"
-                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-                >
-                  Ver mi perfil
-                </a>
-              </div>
-            </div>
-          </AuthenticatedLayout>
-        );
-      }
-    }
-    throw error;
-  }
+  return <MyReservationsContent />;
 }
