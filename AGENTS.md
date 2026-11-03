@@ -5,10 +5,10 @@
 Sistema de reservas de club deportivo (MVP). Enfoque API-First: los contratos se definen en OpenSpec y luego se implementan.
 
 - **Backend**: NestJS + TypeScript
-- **Base de datos**: PostgreSQL 16 en Docker local y RDS PostgreSQL 16 en AWS (Supabase queda como alternativa histórica)
+- **Base de datos**: PostgreSQL 16 en Docker (local y contenedor `db` en la EC2); RDS/Supabase quedan como alternativas históricas
 - **Especificaciones**: OpenSpec (`@fission-ai/openspec`) en `openspec/`
 - **Frontend**: Next.js 16 + React 19 + Tailwind 4
-- **Infraestructura**: Docker + AWS (App Runner, RDS, ECR, Terraform)
+- **Infraestructura**: Docker + AWS (EC2 con Caddy y Docker Compose; Terraform/App Runner quedan como legado no aplicado)
 
 ## Comandos
 
@@ -45,14 +45,14 @@ gh run list --branch main --limit 5                   # Últimos CI runs en main
 ```
 
 **Scripts disponibles en `backend/package.json`:** `test`, `test:e2e`, `lint`, `typecheck`.  
-**Workflows de CI en `.github/workflows/`:** `ci.yml` (lint + typecheck + test + openspec + builds), `docker-build-push.yml` (ECR) y `deploy-aws.yml` (App Runner).
+**Workflows en `.github/workflows/`:** `ci.yml` (lint + typecheck + test + OpenSpec) y `cd.yml` (build y push a GHCR + deploy SSH a la EC2 con Caddy y Docker Compose).
 
 ## Arquitectura
 
 - **API-First**: definir specs en `openspec/specs/` antes de escribir código. Usar las skills de OpenSpec (`openspec-new-change`, `openspec-propose`, etc.) para impulsar el flujo de trabajo.
 - **El esquema de base de datos es el código fuente autoritativo** hoy: `backend/db/esquema-final.sql` (1968 líneas). Las reglas de negocio se ejecutan via triggers de PostgreSQL, no en la aplicación.
 - **Docker**: `backend/Dockerfile` y `frontend/Dockerfile` multi-stage (contexto de build: raíz del monorepo); `docker-compose.yml` levanta db + api + web.
-- **Infraestructura AWS**: `infra/terraform/` (VPC, RDS, ECR, IAM, App Runner, Route53 y alarmas). Guía en `docs/despliegue-aws.md`.
+- **Infraestructura AWS actual**: una EC2 con Docker Compose y Caddy como reverse proxy/TLS (`docs/despliegueContinuo.md`). `infra/terraform/` (VPC, RDS, ECR, App Runner, Route53) es legado validado pero **no aplicado**.
 - **Contexto OpenSpec**: `openspec/config.yaml` define dominio, roles y reglas de negocio.
 
 ## Reglas clave de negocio (de los triggers)
@@ -140,31 +140,25 @@ sección solo los resume.
 | Disparador | `push` a `main`/`develop` y `pull_request` a `main` |
 |---|---|
 | Job `calidad` | `pnpm install --frozen-lockfile` → `prisma generate` → lint → typecheck → tests → `openspec validate --all --strict` |
-| Job `imagenes` | Build de `backend/Dockerfile` y `frontend/Dockerfile` (target `runtime`, `linux/amd64`, sin push) + `docker compose config -q` |
 
 Los tests son unitarios con mocks: no necesitan PostgreSQL ni variables
-`DATABASE_URL`/`JWT_SECRET`. Node 22 y pnpm 12.10.1.
+`DATABASE_URL`/`JWT_SECRET`. Node 22 y pnpm 12.8.1.
 
-#### `docker-build-push.yml` — Publicación de imágenes
+#### `cd.yml` — Construcción, publicación y despliegue
 
-| Disparador | `push` a `main` o `workflow_dispatch` |
+| Disparador | Al completar `ci.yml` en `main` (solo si fue exitoso) o `workflow_dispatch` |
 |---|---|
-| Gate | Requiere `AWS_DEPLOY_ENABLED=true`, `AWS_ROLE_ARN` y `AWS_REGION`; si faltan, el job se omite sin fallar |
-| Pasos | OIDC → login a ECR → buildx `linux/amd64` → push de backend y frontend con tags `${{ github.sha }}` y `latest` |
+| Job `build-and-push` | Login a GHCR → buildx → push de backend y frontend con tags `latest` y `sha-<corto>` |
+| Job `deploy-aws` | Verifica secretos y servidor → `scp` de `Caddyfile`, `docker-compose.prod.yml` y `scripts/deploy-aws.sh` → SSH → `docker compose pull && up -d --wait` → smoke test público |
 
-El frontend exige la variable `NEXT_PUBLIC_API_URL` porque se hornea en el
-bundle durante el build.
+El frontend recibe `NEXT_PUBLIC_API_URL` como build-arg porque se hornea en el
+bundle. El servidor solo descarga imágenes: `docker-compose.prod.yml` no tiene
+bloques `build:`.
 
-#### `deploy-aws.yml` — Despliegue en AWS
-
-| Disparador | Al completar `docker-build-push.yml` en `main` (solo si fue exitoso) o `workflow_dispatch` |
-|---|---|
-| Gate | Mismas variables que el build |
-| Orden | `start-deployment` backend → esperar `SUCCEEDED` → smoke test → `start-deployment` frontend → verificar `/login` |
-
-`auto_deployments_enabled = false` en Terraform: el orden lo controla el
-workflow. App Runner despliega el tag configurado en Terraform (por defecto
-`latest`). Runbook completo en `docs/despliegue-aws.md`.
+Si faltan `DEPLOY_HOST`, `DEPLOY_USER` o `DEPLOY_KEY`, el job **falla de forma
+explícita** (no se omite en silencio). El aprovisionamiento inicial del
+servidor (directorio `/opt/club-deportivo`, `.env.prod`, swap y DNS) está en
+[`docs/despliegueContinuo.md`](../docs/despliegueContinuo.md).
 
 #### Validación local de los workflows
 
@@ -291,14 +285,16 @@ graph TD
     G --> H[Revisión de PR]
     H -->|1 aprobación| I[gh pr merge --squash]
     I --> J[ci.yml en main]
-    J --> K[docker-build-push.yml → ECR]
-    K --> L[deploy-aws.yml → App Runner]
+    J --> K[cd.yml → build + push a GHCR]
+    K --> L[deploy SSH → EC2 + Caddy]
     L --> M[main actualizado]
     M -->|Siguiente fase| A
 ```
 
-Si `AWS_DEPLOY_ENABLED` no es `true` (o faltan `AWS_ROLE_ARN`/`AWS_REGION`),
-los workflows de publicación y deploy se omiten: el CI queda verde igual.
+Si faltan `DEPLOY_HOST`, `DEPLOY_USER` o `DEPLOY_KEY`, el job de deploy falla
+con un mensaje explícito. Un push que solo toca `docs/` o `infra/` no dispara
+CI (por `paths-ignore`) y, por lo tanto, tampoco CD: usar `workflow_dispatch`
+para forzar un despliegue.
 
 ### Estados de CI requeridos para merge
 
@@ -308,28 +304,27 @@ los workflows de publicación y deploy se omiten: el CI queda verde igual.
 | `typecheck` | TypeScript compila sin errores | `ci.yml` |
 | `test` | Tests unitarios pasan (Jest) | `ci.yml` |
 | `openspec` | `openspec validate --all --strict` sin inconsistencias | `ci.yml` |
-| `imagenes` | Ambos Dockerfiles buildean y el compose es válido | `ci.yml` |
 
-### Variables y secretos de GitHub
+### Secretos de GitHub y variables del servidor
 
-Variables del repositorio (Settings → Secrets and variables → Actions → Variables):
-
-| Variable | Uso |
-|---------|-----|
-| `AWS_DEPLOY_ENABLED` | `true` habilita publicación y deploy; cualquier otro valor los omite |
-| `AWS_REGION` | Región de AWS (por defecto `us-east-1`) |
-| `AWS_ROLE_ARN` | Rol asumido por OIDC (salida `github_deploy_role_arn`) |
-| `NEXT_PUBLIC_API_URL` | URL del backend que se hornea en el bundle del frontend |
-
-Secretos (opcionales, solo para el smoke test con login):
+Secretos del repositorio (Settings → Secrets and variables → Actions → Secrets):
 
 | Secreto | Uso |
 |---------|-----|
-| `SMOKE_EMAIL` | Usuario de prueba |
-| `SMOKE_PASSWORD` | Contraseña del usuario de prueba |
+| `DEPLOY_HOST` | IP pública de la instancia AWS (`3.15.211.73`) |
+| `DEPLOY_USER` | Usuario SSH (`ubuntu`) |
+| `DEPLOY_KEY` | Clave privada SSH completa (sin passphrase) |
+| `DEPLOY_PORT` | Puerto SSH (opcional, por defecto `22`) |
 
-No se guardan credenciales AWS de larga vida: GitHub Actions asume
-`github_deploy_role` vía OIDC.
+Variables en el servidor (`/opt/club-deportivo/.env.prod`, permisos `600`):
+
+| Variable | Uso |
+|---------|-----|
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL (obligatoria) |
+| `JWT_SECRET` | Secreto de firma JWT, mínimo 32 caracteres (obligatoria) |
+| `POSTGRES_DB` / `POSTGRES_USER` | Base y usuario (por defecto `club_deportivo`) |
+| `CORS_ORIGINS` | Origen permitido del frontend |
+| `NEXT_PUBLIC_API_URL` | URL del API que se hornea en el build del frontend |
 
 ## Cuidados importantes
 
@@ -338,8 +333,9 @@ No se guardan credenciales AWS de larga vida: GitHub Actions asume
 - No hay archivos `.env` commiteados: la configuración se carga por variables de entorno (`.env.example` en raíz, `backend/` y `frontend/`).
 - `openspec/specs/` todavía no tiene specs sincronizadas; el trabajo vive en `openspec/changes/`.
 - `openspec/changes/api-reservas` es un change vacío de scaffolding con `skip_specs: true` para no romper `validate --all --strict`.
-- `infra/terraform/` está validado con `terraform validate` pero **no aplicado**: requiere cuenta AWS, state remoto y dominio. Ver `docs/despliegue-aws.md`.
-- AWS dejó de aceptar clientes nuevos en App Runner (octubre de 2026). Verificar el acceso antes de aplicar Terraform.
+- `infra/terraform/` está validado con `terraform validate` pero **no aplicado** y corresponde a la arquitectura App Runner (legado). El despliegue vigente es la EC2 documentada en `docs/despliegueContinuo.md`.
+- AWS dejó de aceptar clientes nuevos en App Runner (octubre de 2026): no es una alternativa para esta cuenta.
+- El CD despliega por SSH a `/opt/club-deportivo`; ese directorio, `.env.prod` y el swap se aprovisionan una sola vez (ver `docs/despliegueContinuo.md`).
 
 ## Documentos de referencia
 
@@ -351,9 +347,9 @@ No se guardan credenciales AWS de larga vida: GitHub Actions asume
 - `openspec/config.yaml` — contexto de dominio para OpenSpec
 - `openspec/changes/club-deportivo-reservas/tasks.md` — plan de tareas por fase (fuente de verdad para branching)
 - `README.md` — descripción general del proyecto y roles
-- `.github/workflows/ci.yml` — lint, typecheck, tests, OpenSpec y builds
-- `.github/workflows/docker-build-push.yml` — publicación de imágenes en ECR
-- `.github/workflows/deploy-aws.yml` — despliegue en App Runner
-- `infra/terraform/` — infraestructura como código
+- `.github/workflows/ci.yml` — lint, typecheck, tests y OpenSpec
+- `.github/workflows/cd.yml` — build y push a GHCR + deploy SSH a la EC2
+- `docs/despliegueContinuo.md` — runbook del despliegue continuo (secretos, servidor, DNS, rollback)
+- `infra/terraform/` — infraestructura como código (legado, no aplicada)
 - `scripts/smoke-test.sh` — verificación de un despliegue
 - `scripts/phase-workflow.sh` — script de automatización para iniciar una nueva fase
