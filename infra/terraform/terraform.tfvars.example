@@ -30,7 +30,7 @@ web_subdomain  = "app"
 extra_cors_origins = ""
 
 # GitHub
-github_repository            = "marianalinares-del/club-deportivo"
+github_repository            = "GasparNa/clubDeportivo"
 github_branch                = "main"
 create_github_oidc_provider  = true
 github_oidc_provider_arn     = ""

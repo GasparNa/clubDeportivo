@@ -185,7 +185,7 @@ variable "extra_cors_origins" {
 variable "github_repository" {
   description = "Repositorio de GitHub que puede asumir el rol de deploy (owner/repo)."
   type        = string
-  default     = "marianalinares-del/club-deportivo"
+  default     = "GasparNa/clubDeportivo"
 }
 
 variable "github_branch" {

@@ -4,58 +4,128 @@
 > autoritativo (`backend/db/esquema-final.sql`), datos mínimos de desarrollo y
 > conexión desde el backend NestJS/Prisma vía `DATABASE_URL`.
 >
-> Alcance: **solo la base de datos**. No incluye Dockerfiles de backend/frontend
-> (eso es la Fase 2 de `docs/continuar.md`).
+> Alcance del detalle (§1–§10): **la base de datos local**. El resumen de tareas
+> de §0 incorpora además el plan de despliegue en **AWS con EC2 + Docker
+> Compose**, que reemplaza al path de App Runner (hoy no disponible para cuentas
+> nuevas).
 
 ---
 
-## 0. Resumen de tareas
+## 0. Resumen de tareas a realizar
 
-Checklist consolidado del plan. Estado verificado el **28/10/2026** contra el
-repositorio y el stack local en Docker.
+> Estado verificado el **29/10/2026**. El plan local de PostgreSQL está
+> implementado; quedan las verificaciones de la Fase 3 y, como siguiente fase,
+> el despliegue en AWS (EC2 + Docker Compose), que reemplaza al path de App
+> Runner descartado por AWS.
 
-### Fase 0 — Preparación
+### 0.1 Estado general
 
-- [x] Verificar `docker` y `docker compose`.
-- [x] Crear `.env` raíz con `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_PORT`.
-- [x] Confirmar que el puerto host **5433** está libre.
+| Frente | Estado |
+|---|---|
+| PostgreSQL local en Docker | ✅ Operativo (B0–B3) |
+| Stack completo local (db + api + web) | ✅ Build, migración desde cero, seed, login y frontend verificados |
+| Verificación de reglas (B4) | 🟡 Pendiente |
+| Workflows de CI/CD | 🔴 No existen: falta crear `.github/workflows/` |
+| Rama de trabajo | 🟡 `dev` sincronizada con `origin/dev`, sin PR ni CI ejecutado |
+| Despliegue AWS | 🔴 App Runner no admite cuentas nuevas → se redefine a EC2 + compose |
 
-### Fase 1 — Contenedor y bootstrap
+### 0.2 Tareas pendientes — PostgreSQL local (Fase 3 / B4)
 
-- [x] `docker-compose.yml` con el servicio `db` (`postgres:16-alpine`), volumen `pgdata` y healthcheck.
-- [x] `.env.example` raíz con las variables `POSTGRES_*`.
-- [x] `backend/.env.example` con el bloque local de `DATABASE_URL`.
-- [x] Seed idempotente `backend/db/seed/20-seed.sql` (admin, 6 canchas, franjas y 6 equipamientos).
-- [x] Scripts `scripts/db-up.sh`, `db-reset.sh`, `db-psql.sh`, `db-seed.sh` y `db-baseline.sh` (ejecutables).
-- [x] Scripts de `package.json`: `db:up`, `db:down`, `db:reset`, `db:psql`, `db:seed`, `db:baseline`, `db:logs`.
-- [x] `.gitignore` con `pgdata/`, `.docker/` y variantes de `.env`.
-
-### Fase 2 — Conexión del backend y Prisma
-
-- [x] `backend/.env` local con `DATABASE_URL` apuntando a `localhost:5433`.
-- [x] Los 12 modelos de `backend/prisma/schema.prisma` tienen `@@map` a snake_case.
-- [x] Baseline `backend/prisma/migrations/0001_baseline/migration.sql` generado desde `esquema-final.sql`.
-- [x] `migration_lock.toml` con `provider = "postgresql"`.
-- [x] `prisma migrate deploy` aplicado: `0001_baseline` figura como aplicada.
-- [x] `scripts/db-baseline.sh` permite regenerar el baseline sin editar el SQL a mano.
-- [x] Backend responde `health` (200) contra la base del contenedor.
-
-### Fase 3 — Verificación
-
-- [x] Conteos de estructura: **12 tablas**, **18 triggers**, **15 funciones `fn_*`**, **1 vista**.
-- [x] Datos base: **3 disciplinas** (Fútbol, Pádel, Tenis), **6 canchas**, **1 usuario** administrador.
-- [x] `db-reset.sh` implementado; el camino `down -v` → `up` → `migrate deploy` → seed está probado.
 - [ ] Empaquetar los smoke tests de reglas de negocio (máximo 2 reservas, conflictos, stock, suspensiones) en `backend/db/seed/99-smoke.sql` o tests e2e.
 - [ ] Probar la regla append-only de `registros_auditoria` con el rol no owner `club_app`.
-- [ ] Tests e2e reales: falta `backend/test/jest-e2e.json` (hoy `test:e2e` no corre).
+- [ ] Crear `backend/test/jest-e2e.json` y dejar `pnpm test:e2e` operativo.
+- [ ] Ejecutar `pnpm db:reset` como comprobación final y registrar el resultado.
+- [ ] Actualizar `README.md` y `docs/docker.md` con el estado real.
+- [ ] Commit de los cambios pendientes y PR de la rama `dev` → rama principal.
 
-### Fuera de alcance (no bloquea este plan)
+### 0.3 Tareas — Despliegue en AWS (EC2 + Docker Compose)
+
+> Decisión: se descarta App Runner (AWS ya no acepta clientes nuevos; solo
+> sigue disponible para cuentas que ya lo usaron). Se usa una EC2 `t3.small`
+> x86_64 en subred pública con EIP, RDS PostgreSQL 16 privado, Caddy para TLS y
+> SSM para administración. Sin NAT.
+
+#### Fase A — Prerrequisitos
+
+- [ ] Instalar y autenticar `terraform >= 1.6`, `aws` CLI v2 y `gh`.
+- [ ] Definir dominio y hosted zone ID; registrarlos en `terraform.tfvars`.
+- [ ] Confirmar presupuesto (~USD 36/mes) y cuenta AWS con permisos.
+- [ ] Crear bucket S3 + tabla DynamoDB del state (`bootstrap-state.sh`).
+
+#### Fase B — Git y CI
+
+- [ ] Crear `.github/workflows/ci.yml` (lint, typecheck, test, openspec y build de imágenes); hoy no existe ninguno.
+- [ ] Crear `.github/workflows/docker-build-push.yml` (build `linux/amd64` y push a ECR).
+- [ ] Push de la rama de trabajo y PR hacia la rama principal.
+- [ ] Verificar CI verde y mergear (squash).
+
+#### Fase C — Terraform EC2
+
+- [ ] `network.tf`: subredes públicas, IGW, route table pública, SG de instancia; RDS solo desde ese SG.
+- [ ] `ec2.tf`: AMI AL2023, `t3.small`, EIP, instance profile y user-data.
+- [ ] `iam.tf`: rol de instancia (SSM, ECR read, logs, secrets) y rol GitHub (SSM SendCommand).
+- [ ] `dns.tf`: registros A `api`/`app` → EIP.
+- [ ] `observability.tf`: alarmas EC2/Route53 y log groups con retención.
+- [ ] `outputs.tf` / `locals.tf`: IP pública, dominios y CORS.
+- [ ] Eliminar `apprunner.tf` y las referencias a App Runner.
+- [ ] `terraform fmt -check -recursive` y `terraform validate`.
+
+#### Fase D — Artefactos de despliegue
+
+- [ ] `deploy/aws/docker-compose.yml` (Caddy + backend + frontend, sin `db`, imágenes de ECR).
+- [ ] `deploy/aws/Caddyfile` (TLS Let's Encrypt y proxy por host).
+- [ ] User-data: instalar Docker + compose, escribir `/opt/club/.env` desde Secrets Manager y levantar el stack.
+- [ ] Rotación de logs y healthchecks en el compose de producción.
+
+#### Fase E — Bootstrap del administrador
+
+- [ ] Script idempotente `bootstrap-admin` en la imagen del backend.
+- [ ] Secreto de la contraseña del admin en Secrets Manager.
+- [ ] Ejecución one-off por SSM sobre la instancia (`docker run --rm ...`).
+- [ ] Smoke test con login del admin.
+
+#### Fase F — CI/CD
+
+- [ ] `deploy-aws.yml`: `ssm send-command` + espera + smoke test de API y `/login`.
+- [ ] Permisos del rol OIDC: `ssm:SendCommand`, `GetCommandInvocation`; mantener push a ECR.
+- [ ] Deploy automático al pushear a la rama principal y `workflow_dispatch` manual.
+- [ ] Documentar rollback por tag de imagen.
+
+#### Fase G — Apply y verificación
+
+- [ ] Apply fase 1: ECR + rol GitHub; cargar variables del repo.
+- [ ] Publicar imágenes `linux/amd64` desde GitHub Actions.
+- [ ] Apply fase 2: instancia + RDS + DNS + alarmas.
+- [ ] Bootstrap del admin y `./scripts/smoke-test.sh https://api.<dominio>`.
+- [ ] Verificar `https://app.<dominio>/login`, CORS, logs en CloudWatch y backup de RDS.
+
+#### Fase H — Documentación
+
+- [ ] `docs/despliegue-aws.md`: reemplazar App Runner por EC2 + compose.
+- [ ] `docs/resumen.md` y `AGENTS.md`: actualizar arquitectura y workflows.
+- [ ] Registrar el estado final y las tareas pendientes.
+
+### 0.4 Bloqueantes actuales
+
+1. **App Runner no admite cuentas nuevas** → la infraestructura actual no se puede aplicar.
+2. **No hay workflows de CI/CD** → sin pipeline no hay publicación de imágenes ni OIDC para desplegar.
+3. **No hay admin en una base nueva** → sin bootstrap, nadie puede aprobar usuarios.
+4. **Faltan herramientas y credenciales AWS** en la máquina de trabajo.
+
+### 0.5 Orden recomendado
+
+```
+A + B (en paralelo) → C (Terraform) → D (deploy) → E (admin)
+→ F (CI/CD) → G (apply) → H (docs)
+```
+
+### 0.6 Fuera de alcance (no bloquea este plan)
 
 - [ ] `CREATE POLICY` de RLS y rol de aplicación definitivo.
 - [x] Dockerfiles de backend/frontend: ya existen y están integrados al compose.
 - [ ] CI con servicio PostgreSQL y migración del esquema de producción (`docs/migracion-inicial.sql`).
 
-### Comandos rápidos
+### 0.7 Comandos rápidos
 
 ```bash
 pnpm db:up        # levanta db + migraciones + seed
@@ -65,8 +135,9 @@ pnpm db:seed      # reaplica el seed (idempotente)
 pnpm db:logs      # logs del contenedor
 ```
 
-> Las secciones 1–10 conservan el análisis y el detalle original del plan; este
-> resumen refleja el estado actual de implementación.
+> Las secciones 1–10 conservan el análisis y el detalle original del plan local;
+> este resumen incorpora además el plan de despliegue en AWS definido el
+> 29/10/2026.
 
 ---
 
@@ -442,9 +513,9 @@ responde `health`, `disciplines` y `login`.
 
 ## 9. Fuera de alcance / siguientes pasos
 
-- Dockerfiles multi-stage de backend y frontend (Fase 2 de `docs/continuar.md`).
+- ~~Dockerfiles multi-stage de backend y frontend~~ (ya implementados e integrados al compose).
 - `CREATE POLICY` de RLS y rol de aplicación definitivo.
-- CI con servicio PostgreSQL (hoy `.github/workflows/ci.yml` no tiene `jobs`).
+- CI con servicio PostgreSQL (hoy no existen workflows en `.github/workflows/`).
 - Tests e2e reales (`backend/test/jest-e2e.json` no existe).
 - Migración del esquema PascalCase de producción (`docs/migracion-inicial.sql`).
 

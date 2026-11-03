@@ -136,7 +136,7 @@ Decisiones relevantes:
 | `web_min_size` / `web_max_size` | `1` / `3` | App Runner no baja de 1 instancia |
 | `domain_name` | `""` | Vacío = URLs autogeneradas de App Runner |
 | `hosted_zone_id` | `""` | Obligatorio si `domain_name` no está vacío |
-| `github_repository` | `marianalinares-del/club-deportivo` | Condición `sub` del OIDC |
+| `github_repository` | `GasparNa/clubDeportivo` | Condición `sub` del OIDC |
 | `github_branch` | `main` | Solo esa rama puede asumir el rol |
 | `alarm_email` | `""` | Si se define, suscribe el email a SNS |
 | `backend_image_tag` / `web_image_tag` | `latest` | Cambiar a un SHA para rollback |
