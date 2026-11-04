@@ -6,7 +6,8 @@
 		"typescript": "^7.0.2"
 	},
 	"scripts": {
-		"postinstall": "prisma skills sync || exit 0",
+		"postinstall": "pnpm --filter club-deportivo-backend run prisma:generate && pnpm exec prisma skills sync || exit 0",
+		"dev": "pnpm --parallel --filter frontend --filter club-deportivo-backend run dev",
 		"db:up": "./scripts/db-up.sh",
 		"db:down": "docker compose down",
 		"db:reset": "./scripts/db-reset.sh",
