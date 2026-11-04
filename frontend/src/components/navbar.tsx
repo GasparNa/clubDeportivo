@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-provider";
@@ -26,9 +27,14 @@ export function Navbar() {
           href="/"
           className="flex shrink-0 items-center gap-2 font-semibold tracking-tight text-text-primary"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-surface">
-            CD
-          </span>
+          <Image
+            src="/logo.svg"
+            alt="Club Deportivo"
+            width={36}
+            height={36}
+            className="h-9 w-9 object-contain"
+            priority
+          />
           <span className="hidden sm:inline">Club Deportivo</span>
         </Link>
 

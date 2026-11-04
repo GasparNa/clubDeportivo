@@ -1,65 +1,42 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Club Deportivo — Design Tokens
-   Basado en docs/colores.md
+   Club Deportivo — Circuit Navy / Acid Lime
    ============================================================ */
 
-/* --- Modo Claro: "Cancha de Día" (default) --- */
 :root {
-  --color-primary: #0B7A55;
-  --color-primary-hover: #065F3E;
-  --color-secondary: #0F172A;
-  --color-accent: #D97706;
-  --color-background: #F8FAFC;
-  --color-surface: #FFFFFF;
-  --color-surface-2: #F1F5F9;
-  --color-text-primary: #0F172A;
-  --color-text-secondary: #475569;
-  --color-border: #CBD5E1;
-  --color-success: #15803D;
-  --color-warning: #B45309;
-  --color-error: #DC2626;
-  --color-info: #2563EB;
-}
-
-/* --- Modo Oscuro: "Cancha de Noche" --- */
-.dark,
-[data-theme="dark"] {
-  --color-primary: #34D399;
-  --color-primary-hover: #6EE7B7;
-  --color-secondary: #93C5FD;
-  --color-accent: #FCD34D;
-  --color-background: #070F1E;
-  --color-surface: #111F35;
-  --color-surface-2: #1A2E4D;
-  --color-text-primary: #F1F5F9;
+  --color-primary: #B4FF00;
+  --color-primary-hover: #D4FF66;
+  --color-secondary: #60A5FA;
+  --color-accent: #B4FF00;
+  --color-background: #0C1A2B;
+  --color-surface: #132337;
+  --color-surface-2: #1A3048;
+  --color-text-primary: #FFFFFF;
   --color-text-secondary: #94A3B8;
-  --color-border: #1E3A5F;
+  --color-border: rgba(255, 255, 255, 0.1);
   --color-success: #4ADE80;
   --color-warning: #FBBF24;
   --color-error: #F87171;
   --color-info: #60A5FA;
 }
 
-/* prefers-color-scheme: dark (sin toggle manual) */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --color-primary: #34D399;
-    --color-primary-hover: #6EE7B7;
-    --color-secondary: #93C5FD;
-    --color-accent: #FCD34D;
-    --color-background: #070F1E;
-    --color-surface: #111F35;
-    --color-surface-2: #1A2E4D;
-    --color-text-primary: #F1F5F9;
-    --color-text-secondary: #94A3B8;
-    --color-border: #1E3A5F;
-    --color-success: #4ADE80;
-    --color-warning: #FBBF24;
-    --color-error: #F87171;
-    --color-info: #60A5FA;
-  }
+.dark,
+[data-theme="dark"] {
+  --color-primary: #B4FF00;
+  --color-primary-hover: #D4FF66;
+  --color-secondary: #60A5FA;
+  --color-accent: #B4FF00;
+  --color-background: #0C1A2B;
+  --color-surface: #132337;
+  --color-surface-2: #1A3048;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #94A3B8;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-success: #4ADE80;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+  --color-info: #60A5FA;
 }
 
 /* --- Tailwind v4 @theme --- */
@@ -78,17 +55,18 @@
   --color-warning: var(--color-warning);
   --color-error: var(--color-error);
   --color-info: var(--color-info);
-  --font-sans: var(--font-geist-sans, system-ui, sans-serif);
+  --font-sans: var(--font-ui, sans-serif);
+  --font-heading: var(--font-display, sans-serif);
   --font-mono: var(--font-geist-mono, monospace);
 }
 
 /* --- Base --- */
-:root {
-  color-scheme: light;
-}
-
 .dark,
 [data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root {
   color-scheme: dark;
 }
 
@@ -106,6 +84,63 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+.nebula-orb {
+  position: absolute;
+  display: block;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 9999px;
+  background: #B4FF00;
+  filter: blur(88px);
+  opacity: 0.16;
+  will-change: transform;
+}
+
+.nebula-orb-primary {
+  top: -8rem;
+  left: 8%;
+  animation: nebula-drift-primary 15s ease-in-out infinite;
+}
+
+.nebula-orb-secondary {
+  top: 28%;
+  right: -10rem;
+  width: 28rem;
+  height: 28rem;
+  opacity: 0.11;
+  animation: nebula-drift-secondary 19s ease-in-out infinite;
+}
+
+.nebula-orb-tertiary {
+  bottom: -12rem;
+  left: 32%;
+  width: 26rem;
+  height: 26rem;
+  opacity: 0.09;
+  animation: nebula-drift-tertiary 17s ease-in-out infinite;
+}
+
+@keyframes nebula-drift-primary {
+  0%, 100% { transform: translate3d(-8%, -4%, 0) scale(0.9) rotate(-4deg); }
+  50% { transform: translate3d(22%, 18%, 0) scale(1.14) rotate(5deg); }
+}
+
+@keyframes nebula-drift-secondary {
+  0%, 100% { transform: translate3d(8%, -10%, 0) scale(0.94) rotate(3deg); }
+  50% { transform: translate3d(-22%, 18%, 0) scale(1.16) rotate(-6deg); }
+}
+
+@keyframes nebula-drift-tertiary {
+  0%, 100% { transform: translate3d(-16%, 8%, 0) scale(1.08) rotate(-5deg); }
+  50% { transform: translate3d(18%, -16%, 0) scale(0.88) rotate(7deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nebula-orb {
+    animation: none;
+  }
 }
 
 /* --- Accesibilidad: screen-reader-only --- */
