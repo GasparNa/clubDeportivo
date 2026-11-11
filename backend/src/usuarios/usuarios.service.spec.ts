@@ -199,4 +199,157 @@ describe('UsuariosService', () => {
       await expect(service.getPerfil('no-existe')).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('getUsuarioDetalle', () => {
+    const usuarioBase = {
+      id_usuario: 'uuid-usuario-1',
+      rol: 'SOCIO',
+      estado: 'ACTIVO',
+      password_hash: 'hash-secreto',
+      id_contacto_login: 'uuid-contacto-email',
+      incumplimientos_equipamiento: 2,
+      creado_en: new Date('2026-01-10T10:00:00Z'),
+      actualizado_en: new Date('2026-02-10T10:00:00Z'),
+      persona: {
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        dni: '12345678',
+        cuil: '20-12345678-7',
+        fecha_nacimiento: new Date('1990-01-15'),
+        contactos: [
+          { tipo_contacto: 'EMAIL', valor_contacto: 'juan@test.com', estado: 'ACTIVO' },
+          { tipo_contacto: 'TELEFONO', valor_contacto: '123456789', estado: 'ACTIVO' },
+        ],
+      },
+    };
+
+    it('debe retornar el detalle plano con contactos activos', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue(usuarioBase);
+
+      const result = await service.getUsuarioDetalle('uuid-usuario-1');
+
+      expect(result).toMatchObject({
+        id: 'uuid-usuario-1',
+        id_usuario: 'uuid-usuario-1',
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        email: 'juan@test.com',
+        telefono: '123456789',
+        dni: '12345678',
+        cuil: '20-12345678-7',
+        rol: 'SOCIO',
+        estado: 'ACTIVO',
+        infracciones_equipamiento: 2,
+      });
+      expect(result).not.toHaveProperty('password_hash');
+      expect(result).not.toHaveProperty('id_contacto_login');
+      expect(result).not.toHaveProperty('persona');
+    });
+
+    it('debe devolver email vacío y teléfono null cuando no hay contactos activos', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        ...usuarioBase,
+        persona: { ...usuarioBase.persona, contactos: [] },
+      });
+
+      const result = await service.getUsuarioDetalle('uuid-usuario-1');
+
+      expect(result.email).toBe('');
+      expect(result.telefono).toBeNull();
+    });
+
+    it('debe ignorar contactos inactivos del mismo tipo', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        ...usuarioBase,
+        persona: {
+          ...usuarioBase.persona,
+          contactos: [
+            { tipo_contacto: 'EMAIL', valor_contacto: 'viejo@test.com', estado: 'INACTIVO' },
+            { tipo_contacto: 'TELEFONO', valor_contacto: '000', estado: 'INACTIVO' },
+          ],
+        },
+      });
+
+      const result = await service.getUsuarioDetalle('uuid-usuario-1');
+
+      expect(result.email).toBe('');
+      expect(result.telefono).toBeNull();
+    });
+
+    it('debe lanzar NotFoundException con el mensaje esperado si el usuario no existe', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue(null);
+
+      await expect(service.getUsuarioDetalle('no-existe')).rejects.toThrow(
+        'Usuario no encontrado',
+      );
+    });
+  });
+
+  describe('listarUsuarios', () => {
+    const usuarioListado = {
+      id_usuario: 'uuid-usuario-1',
+      rol: 'SOCIO',
+      estado: 'ACTIVO',
+      password_hash: 'hash-secreto',
+      id_contacto_login: 'uuid-contacto-email',
+      incumplimientos_equipamiento: 0,
+      creado_en: new Date('2026-01-10T10:00:00Z'),
+      actualizado_en: new Date('2026-02-10T10:00:00Z'),
+      persona: {
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        dni: '12345678',
+        cuil: null,
+        fecha_nacimiento: null,
+        contactos: [
+          { tipo_contacto: 'EMAIL', valor_contacto: 'juan@test.com', estado: 'ACTIVO' },
+          { tipo_contacto: 'TELEFONO', valor_contacto: '123456789', estado: 'ACTIVO' },
+        ],
+      },
+    };
+
+    it('debe devolver una lista plana sin credenciales ni relaciones anidadas', async () => {
+      mockPrisma.usuario.findMany.mockResolvedValue([usuarioListado]);
+
+      const result = await service.listarUsuarios();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: 'uuid-usuario-1',
+        id_usuario: 'uuid-usuario-1',
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        email: 'juan@test.com',
+        telefono: '123456789',
+        rol: 'SOCIO',
+        estado: 'ACTIVO',
+      });
+      expect(result[0]).not.toHaveProperty('password_hash');
+      expect(result[0]).not.toHaveProperty('id_contacto_login');
+      expect(result[0]).not.toHaveProperty('persona');
+      expect(result[0]).not.toHaveProperty('contactos');
+    });
+
+    it('debe aplicar los filtros de rol y estado en la consulta', async () => {
+      mockPrisma.usuario.findMany.mockResolvedValue([]);
+
+      await service.listarUsuarios('SOCIO', 'ACTIVO');
+
+      expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { rol: 'SOCIO', estado: 'ACTIVO' },
+        }),
+      );
+    });
+
+    it('debe consultar sin filtros cuando no se reciben', async () => {
+      mockPrisma.usuario.findMany.mockResolvedValue([]);
+
+      await service.listarUsuarios();
+
+      expect(mockPrisma.usuario.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    });
+  });
 });

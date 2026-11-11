@@ -2,8 +2,46 @@
 "use strict";
 
 // Decorators
+// Se replican las claves de metadata reales de Nest para que los tests de
+// controlador puedan inspeccionar guards, roles y pipes.
+const GUARDS_METADATA = '__guards__';
+const ROUTE_ARGS_METADATA = '__routeArguments__';
+const RouteParamtypes = {
+  REQUEST: 0,
+  RESPONSE: 1,
+  NEXT: 2,
+  BODY: 3,
+  QUERY: 4,
+  PARAM: 5,
+  HEADERS: 6,
+};
+
 function createDecorator() {
   return function () {};
+}
+
+function metadataTarget(target, descriptor) {
+  return descriptor && descriptor.value ? descriptor.value : target;
+}
+
+function extendArrayMetadata(key, metadata, target) {
+  const previous = Reflect.getMetadata(key, target) || [];
+  const next = [...previous];
+  metadata.forEach((entry) => {
+    if (!next.includes(entry)) next.push(entry);
+  });
+  Reflect.defineMetadata(key, next, target);
+}
+
+function createRouteParamDecorator(paramtype) {
+  return function (data, ...pipes) {
+    return function (target, key, index) {
+      const args =
+        Reflect.getMetadata(ROUTE_ARGS_METADATA, target.constructor, key) || {};
+      args[`${paramtype}:${index}`] = { index, data, pipes };
+      Reflect.defineMetadata(ROUTE_ARGS_METADATA, args, target.constructor, key);
+    };
+  };
 }
 
 const Injectable = () => (target) => target;
@@ -11,11 +49,12 @@ const Controller = (prefix) => (target) => target;
 const Module = (metadata) => (target) => target;
 const Global = () => (target) => target;
 const Catch = (...exceptions) => (target) => target;
-const Param = (property) => createDecorator();
-const Body = (property) => createDecorator();
-const Query = (property) => createDecorator();
-const Headers = (property) => createDecorator();
-const Req = () => createDecorator();
+const Param = createRouteParamDecorator(RouteParamtypes.PARAM);
+const Body = createRouteParamDecorator(RouteParamtypes.BODY);
+const Query = createRouteParamDecorator(RouteParamtypes.QUERY);
+const Headers = createRouteParamDecorator(RouteParamtypes.HEADERS);
+const Request = createRouteParamDecorator(RouteParamtypes.REQUEST);
+const Req = Request;
 const Res = () => createDecorator();
 const HttpCode = (code) => createDecorator();
 const Get = (path) => createDecorator();
@@ -23,11 +62,23 @@ const Post = (path) => createDecorator();
 const Put = (path) => createDecorator();
 const Patch = (path) => createDecorator();
 const Delete = (path) => createDecorator();
-const UseGuards = (...guards) => createDecorator();
+const UseGuards = (...guards) => {
+  return function (target, key, descriptor) {
+    extendArrayMetadata(
+      GUARDS_METADATA,
+      guards,
+      metadataTarget(target, descriptor),
+    );
+  };
+};
 const UsePipes = (...pipes) => createDecorator();
 const UseInterceptors = (...interceptors) => createDecorator();
 const UseFilters = (...filters) => createDecorator();
-const SetMetadata = (key, value) => createDecorator();
+const SetMetadata = (key, value) => {
+  return function (target, propertyKey, descriptor) {
+    Reflect.defineMetadata(key, value, metadataTarget(target, descriptor));
+  };
+};
 
 // Enums
 const HttpStatus = {
@@ -72,6 +123,23 @@ class ServiceUnavailableException extends HttpException {
   constructor(message) { super(message || 'Service Unavailable', 503); }
 }
 
+// Pipes
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+class ParseUUIDPipe {
+  constructor(options) {
+    this.options = options || {};
+  }
+
+  transform(value) {
+    if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
+      throw new BadRequestException('Validation failed (uuid is expected)');
+    }
+    return value;
+  }
+}
+
 // Interfaces (abstract classes for DI)
 class CanActivate {}
 class ExecutionContext {}
@@ -91,6 +159,7 @@ module.exports = {
   Body,
   Query,
   Headers,
+  Request,
   Req,
   Res,
   HttpCode,
@@ -119,5 +188,6 @@ module.exports = {
   ArgumentsHost,
   ExceptionFilter,
   PipeTransform,
+  ParseUUIDPipe,
   NestInterceptor,
 };

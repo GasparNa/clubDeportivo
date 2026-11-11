@@ -82,6 +82,7 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1",
       "^@nestjs/common$": "<rootDir>/../stubs/@nestjs_common.js",
+      "^@nestjs/core$": "<rootDir>/../stubs/@nestjs_core.js",
       "^@nestjs/jwt$": "<rootDir>/../stubs/@nestjs_jwt.js",
       "^@nestjs/passport$": "<rootDir>/../stubs/@nestjs_passport.js",
       "^@prisma/client$": "<rootDir>/../stubs/@prisma_client.js"

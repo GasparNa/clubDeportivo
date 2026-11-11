@@ -88,8 +88,120 @@ describe('PagosService', () => {
     });
   });
 
+  describe('listarNotificaciones', () => {
+    const usuarioId = 'uuid-user-1';
+
+    const registroBase = {
+      id_registro: 'uuid-notif-1',
+      id_usuario: usuarioId,
+      evento: 'NOTIFICACION_INFO',
+      entidad: 'notificaciones',
+      detalle: {
+        asunto: 'Recordatorio de reserva',
+        mensaje: 'Su reserva es mañana',
+      },
+      fecha: new Date('2026-03-01T10:00:00Z'),
+    };
+
+    it('debe mapear las notificaciones propias con el contrato de la UI', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([registroBase]);
+
+      const result = await service.listarNotificaciones(usuarioId);
+
+      expect(result).toEqual([
+        {
+          id: 'uuid-notif-1',
+          titulo: 'Recordatorio de reserva',
+          mensaje: 'Su reserva es mañana',
+          tipo: 'INFO',
+          leida: false,
+          creado_en: new Date('2026-03-01T10:00:00Z'),
+        },
+      ]);
+    });
+
+    it('debe consultar solo eventos NOTIFICACION_* del usuario y entidad notificaciones', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await service.listarNotificaciones(usuarioId);
+
+      expect(mockPrisma.registroAuditoria.findMany).toHaveBeenCalledWith({
+        where: {
+          id_usuario: usuarioId,
+          entidad: 'notificaciones',
+          evento: { startsWith: 'NOTIFICACION_' },
+        },
+        orderBy: { fecha: 'desc' },
+        take: 100,
+      });
+    });
+
+    it('debe devolver una lista vacía cuando el usuario no tiene notificaciones', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await expect(service.listarNotificaciones(usuarioId)).resolves.toEqual([]);
+    });
+
+    it('no debe incluir notificaciones de otros usuarios', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await service.listarNotificaciones(usuarioId);
+
+      const llamada =
+        mockPrisma.registroAuditoria.findMany.mock.calls[0][0];
+      expect(llamada.where.id_usuario).toBe(usuarioId);
+    });
+
+    it('debe normalizar un tipo desconocido a INFO', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([
+        { ...registroBase, evento: 'NOTIFICACION_RESERVA_CONFIRMADA' },
+      ]);
+
+      const [notificacion] = await service.listarNotificaciones(usuarioId);
+
+      expect(notificacion.tipo).toBe('INFO');
+    });
+
+    it('debe usar el título histórico cuando falta detalle.asunto', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([
+        {
+          ...registroBase,
+          detalle: { mensaje: 'Mensaje sin asunto', email: 'juan@test.com' },
+        },
+      ]);
+
+      const [notificacion] = await service.listarNotificaciones(usuarioId);
+
+      expect(notificacion.titulo).toBe('Notificación');
+    });
+
+    it('debe limitar la bandeja a las 100 notificaciones más recientes', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await service.listarNotificaciones(usuarioId);
+
+      expect(
+        mockPrisma.registroAuditoria.findMany,
+      ).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
+    });
+
+    it('debe excluir eventos de otra entidad en la consulta', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await service.listarNotificaciones(usuarioId);
+
+      expect(
+        mockPrisma.registroAuditoria.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ entidad: 'notificaciones' }),
+        }),
+      );
+    });
+  });
+
   describe('enviarNotificacion', () => {
-    it('debe simular envío de notificación', async () => {
+    it('debe registrar la notificación con asunto y tipo, y responder 201 (simulado)', async () => {
       mockPrisma.usuario.findUnique.mockResolvedValue({
         id_usuario: 'uuid-user-1',
         persona: {
@@ -98,18 +210,70 @@ describe('PagosService', () => {
       });
       mockPrisma.registroAuditoria.create.mockResolvedValue({
         id_registro: 'uuid-notif-1',
-        evento: 'NOTIFICACION_RESERVA_CONFIRMADA',
+        evento: 'NOTIFICACION_SUCCESS',
       });
 
       const result = await service.enviarNotificacion({
         id_usuario: 'uuid-user-1',
-        tipo: 'RESERVA_CONFIRMADA',
+        asunto: 'Reserva confirmada',
         mensaje: 'Su reserva ha sido confirmada',
+        tipo: 'SUCCESS',
       });
 
-      expect(result).toHaveProperty('message', 'Notificación enviada (simulada)');
-      expect(result).toHaveProperty('email', 'juan@test.com');
-      expect(result).toHaveProperty('tipo', 'RESERVA_CONFIRMADA');
+      expect(result).toEqual({
+        message: 'Notificación enviada (simulada)',
+        email: 'juan@test.com',
+        tipo: 'SUCCESS',
+      });
+      expect(mockPrisma.registroAuditoria.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            evento: 'NOTIFICACION_SUCCESS',
+            entidad: 'notificaciones',
+            detalle: expect.objectContaining({
+              asunto: 'Reserva confirmada',
+              mensaje: 'Su reserva ha sido confirmada',
+              email: 'juan@test.com',
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('debe aplicar INFO cuando se omite el tipo', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        id_usuario: 'uuid-user-1',
+        persona: { contactos: [] },
+      });
+      mockPrisma.registroAuditoria.create.mockResolvedValue({
+        id_registro: 'uuid-notif-2',
+        evento: 'NOTIFICACION_INFO',
+      });
+
+      const result = await service.enviarNotificacion({
+        id_usuario: 'uuid-user-1',
+        asunto: 'Aviso',
+        mensaje: 'Mensaje',
+      });
+
+      expect(result.tipo).toBe('INFO');
+      expect(mockPrisma.registroAuditoria.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ evento: 'NOTIFICACION_INFO' }),
+        }),
+      );
+    });
+
+    it('debe lanzar NotFoundException si el destinatario no existe', async () => {
+      mockPrisma.usuario.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.enviarNotificacion({
+          id_usuario: 'uuid-inexistente',
+          asunto: 'Aviso',
+          mensaje: 'Mensaje',
+        }),
+      ).rejects.toThrow('Usuario no encontrado');
     });
   });
 });

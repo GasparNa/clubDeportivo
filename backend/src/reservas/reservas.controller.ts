@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ReservasService } from './reservas.service';
@@ -109,8 +110,17 @@ export class ReservasController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('equipment-rentals')
-  async listarAlquileres(@Query('reservation_id') reservationId?: string) {
-    return this.reservasService.listarAlquileres(reservationId);
+  async listarAlquileres(
+    @Request() req,
+    @Query('reservation_id') reservationId?: string,
+  ) {
+    return this.reservasService.listarAlquileres(reservationId, req.user);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('equipment-rentals/:id')
+  async getAlquiler(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
+    return this.reservasService.getAlquiler(id, req.user);
   }
 
   @UseGuards(AuthGuard('jwt'), ActiveUserGuard)

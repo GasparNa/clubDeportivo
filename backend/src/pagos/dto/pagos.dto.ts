@@ -1,4 +1,13 @@
-import { IsUUID, IsNumber, IsOptional, IsEnum, IsString, IsDateString, Min } from 'class-validator';
+import {
+  IsUUID,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+  IsString,
+  IsDateString,
+  IsNotEmpty,
+  Min,
+} from 'class-validator';
 
 export class CreatePagoDto {
   @IsUUID()
@@ -16,6 +25,27 @@ export class CreatePagoDto {
 export class UpdatePagoEstadoDto {
   @IsEnum(['PENDIENTE', 'COMPLETADO', 'FALLIDO', 'REEMBOLSADO'])
   estado!: string;
+}
+
+export class CreateNotificacionDto {
+  @IsUUID()
+  id_usuario!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  asunto!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  mensaje!: string;
+
+  @IsOptional()
+  @IsEnum(['INFO', 'WARNING', 'ERROR', 'SUCCESS'])
+  tipo?: string;
+
+  @IsOptional()
+  @IsUUID()
+  id_reserva?: string;
 }
 
 export class AuditoriaQueryDto {

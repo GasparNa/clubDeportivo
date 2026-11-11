@@ -13,6 +13,11 @@ import {
   UpdateDevolucionDto,
 } from './dto/reservas.dto';
 
+export interface ActorReserva {
+  id_usuario?: string;
+  rol?: string;
+}
+
 @Injectable()
 export class ReservasService {
   constructor(private prisma: PrismaService) {}
@@ -306,10 +311,69 @@ export class ReservasService {
   // ════════════════════════════════════════════════════════════════════
 
   /**
-   * Listar alquileres de equipamiento.
+   * Obtener el detalle plano de un alquiler de equipamiento.
+   * Un SOCIO solo puede consultar alquileres de sus propias reservas.
    */
-  async listarAlquileres(id_reserva?: string) {
-    const where = id_reserva ? { id_reserva } : {};
+  async getAlquiler(id_detalle: string, actor?: ActorReserva) {
+    if (!actor?.id_usuario) {
+      throw new ForbiddenException('Se requiere autenticación');
+    }
+
+    const detalle = await this.prisma.detalleAlquilerEquipamiento.findUnique({
+      where: { id_detalle },
+      include: {
+        equipamiento: true,
+        reserva: { select: { id_reserva: true, id_persona: true } },
+      },
+    });
+
+    if (!detalle) {
+      throw new NotFoundException('Detalle de alquiler no encontrado');
+    }
+
+    if (!this.esGerencia(actor) && detalle.reserva?.id_persona !== actor.id_usuario) {
+      throw new ForbiddenException(
+        'No puedes consultar alquileres de otro usuario',
+      );
+    }
+
+    return this.mapAlquilerDetalle(detalle);
+  }
+
+  /**
+   * Listar alquileres de equipamiento.
+   * Un SOCIO solo ve los alquileres de sus propias reservas.
+   */
+  async listarAlquileres(
+    id_reserva: string | undefined,
+    actor?: ActorReserva,
+  ) {
+    if (!actor?.id_usuario) {
+      throw new ForbiddenException('Se requiere autenticación');
+    }
+
+    const where: any = {};
+    const esGerencia = this.esGerencia(actor);
+
+    if (!esGerencia) {
+      if (id_reserva) {
+        const reserva = await this.prisma.reserva.findUnique({
+          where: { id_reserva },
+          select: { id_persona: true },
+        });
+
+        if (reserva && reserva.id_persona !== actor.id_usuario) {
+          throw new ForbiddenException(
+            'No puedes consultar alquileres de otro usuario',
+          );
+        }
+      }
+
+      where.reserva = { id_persona: actor.id_usuario };
+    }
+
+    if (id_reserva) where.id_reserva = id_reserva;
+
     return this.prisma.detalleAlquilerEquipamiento.findMany({
       where,
       include: {
@@ -325,6 +389,33 @@ export class ReservasService {
       },
       orderBy: { creado_en: 'desc' },
     });
+  }
+
+  private esGerencia(actor?: ActorReserva): boolean {
+    return actor?.rol === 'ADMINISTRADOR' || actor?.rol === 'GERENTE';
+  }
+
+  private mapAlquilerDetalle(detalle: any) {
+    return {
+      id_detalle: detalle.id_detalle,
+      id_reserva: detalle.id_reserva,
+      id_equipamiento: detalle.id_equipamiento,
+      cantidad: detalle.cantidad,
+      precio_unitario:
+        detalle.precio_unitario != null
+          ? Number(detalle.precio_unitario)
+          : null,
+      subtotal: detalle.subtotal != null ? Number(detalle.subtotal) : null,
+      estado_devolucion: detalle.estado_devolucion,
+      creado_en: detalle.creado_en,
+      equipamiento: detalle.equipamiento
+        ? {
+            id_equipamiento: detalle.equipamiento.id_equipamiento,
+            nombre: detalle.equipamiento.nombre,
+            precio_alquiler: Number(detalle.equipamiento.precio_alquiler),
+          }
+        : null,
+    };
   }
 
   /**

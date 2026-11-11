@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { UsuariosService } from './usuarios.service';
@@ -81,6 +82,13 @@ export class UsuariosController {
     @Query('estado') estado?: string,
   ) {
     return this.usuariosService.listarUsuarios(rol, estado);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMINISTRADOR')
+  @Get('users/:id')
+  async getUsuarioDetalle(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usuariosService.getUsuarioDetalle(id);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
