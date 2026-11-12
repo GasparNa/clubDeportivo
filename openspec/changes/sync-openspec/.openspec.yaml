@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-11-08
+# Change de mantenimiento: no altera comportamiento ni contratos. Solo elimina
+# changes obsoletos, reconcilia tasks y archiva sincronizando specs existentes.
+# Se marca skip_specs para que la validacion estricta no exija deltas propios.
+skip_specs: true

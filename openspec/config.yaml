@@ -1,3 +1,74 @@
 schema: spec-driven
 githubCopilot:
   cloudAgent: true
+
+# Contexto que OpenSpec inyecta al crear proposal, specs, design y tasks.
+# Fuente de verdad: AGENTS.md, README.md y backend/prisma/migrations/0001_baseline.
+context: |
+  # Sistema de Reservas - Club Deportivo (MVP)
+
+  ## Dominio
+  Reservas de canchas por disciplina (Tenis, Futbol, Padel), franjas horarias,
+  alquiler de equipamiento con control de stock, pagos, auditoria y notificaciones.
+
+  ## Stack
+  - Backend: NestJS 12 + TypeScript + Prisma 5 (carpeta backend/)
+  - Frontend: Next.js 16 + React 19 + Tailwind 4 + TanStack Query (carpeta frontend/)
+  - Base de datos: PostgreSQL 16. Se crea con `prisma migrate deploy`
+    (backend/prisma/migrations/0001_baseline). Seed de desarrollo en backend/db/seed/.
+  - Infra: Docker Compose; produccion en una EC2 con Caddy (TLS) desplegada por SSH
+    desde GitHub Actions. Terraform/App Runner es legado NO aplicado.
+  - Gestor de paquetes: pnpm (workspace). API bajo el prefijo /api/v1.
+
+  ## Actores y roles
+  - SOCIO: se autoregistra, ve disponibilidad, reserva y cancela, edita su perfil.
+  - GERENTE: altas de socios, gestion de reservas, stock y devoluciones de
+    equipamiento, check-in y finalizacion de turnos.
+  - ADMINISTRADOR: todo lo del GERENTE mas catalogo (disciplinas/canchas), alta de
+    personal, reactivacion de cuentas suspendidas y auditoria.
+
+  ## Reglas de negocio vigentes (viven en triggers de PostgreSQL)
+  - Solo usuarios registrados y con estado ACTIVO pueden tener reservas
+    (change restrict-reservations-to-active-users). Los invitados sin cuenta ya no
+    reservan. 
+  - Maximo 2 reservas CONFIRMADA por usuario (advisory lock en fn_validar_reserva).
+  - La cancelacion de una reserva AUTOGESTIONADA requiere 1 dia (24 h) de anticipacion.
+  - Alquiler de equipamiento: el stock se descuenta al alquilar y se restaura al
+    devolver o al cancelar la reserva.
+  - 3 o mas incumplimientos en devoluciones de equipamiento suspenden al usuario.
+  - Un usuario suspendido no puede reservar ni alquilar.
+  - registros_auditoria es solo-append (sin UPDATE ni DELETE).
+
+  ## Convenciones
+  - Idioma: espanol (es-AR) para dominio, tablas, columnas, comentarios y specs.
+    Las palabras clave de OpenSpec (SHALL, WHEN, THEN) se mantienen tal cual.
+  - IDs: UUID. Bajas logicas con `estado` (ACTIVO/INACTIVO). Timestamps con zona horaria.
+  - Git: main protegida; ramas `feature/<slug>` o `fix/<slug>`; commits convencionales
+    (feat, fix, test, docs, chore); PR con 1 aprobacion y CI en verde antes de mergear.
+  - Calidad: lint, typecheck, tests unitarios y `openspec validate --all --strict`
+    deben pasar en CI.
+  - Pruebas: cada caso de prueba define ID, precondiciones, datos de entrada, pasos y
+    resultado esperado (ver docs/pruebas.md).
+
+rules:
+  proposal:
+    - "Explicar el por que (problema de negocio) antes del que; nombrar los roles afectados."
+    - "Marcar con BREAKING cualquier cambio que rompa el contrato de la API o una regla de negocio vigente."
+    - "Listar capabilities nuevas y modificadas, y el impacto en backend, frontend, base de datos e infraestructura."
+    - "Si el change no altera comportamiento (mantenimiento, documentacion, CI), declararlo con skip_specs en .openspec.yaml y explicar el motivo."
+  specs:
+    - "Cada requisito usa SHALL y describe un unico comportamiento verificable."
+    - "Los requisitos nuevos llevan un ID estable en el titulo, por ejemplo RF-RES-01, para poder trazarlos a casos de prueba y tests."
+    - "Cada requisito tiene al menos tres escenarios: camino feliz, caso de error y regla de negocio."
+    - "Los escenarios usan WHEN/THEN con datos concretos (rol, estados, codigos HTTP como 403 o 400) y no frases vagas."
+    - "No describir pasos de implementacion en los specs: eso va en design.md."
+    - "Si un requisito reemplaza o elimina otro, usar MODIFIED o REMOVED sobre un requisito que exista en la misma capability."
+  design:
+    - "Registrar decisiones con alternativas consideradas y el motivo de la elegida."
+    - "Indicar si la regla vive en la aplicacion (NestJS) o en un trigger de PostgreSQL, y el impacto en migraciones de Prisma."
+    - "Listar riesgos y como se verifican (test de integracion, Playwright o smoke test)."
+  tasks:
+    - "Tareas chicas (hasta 1-2 horas) y ordenadas; cada una termina con su comando de verificacion."
+    - "Incluir siempre una tarea de tests y una de lint + typecheck."
+    - "Cerrar con la tarea de PR: rama, CI en verde, revision de un companero y archivo del change."
+    - "Las tareas que dependen de infraestructura que no se usa mas se marcan como obsoletas, no se dejan abiertas."

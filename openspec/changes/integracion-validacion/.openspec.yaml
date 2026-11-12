@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-11-08
+# Change de tooling/tests/CI: absorbe las tareas diferidas de
+# club-deportivo-reservas (5.1-5.3 y 5.5-5.8). No cambia comportamiento del
+# sistema, por eso se declara skip_specs. Si al implementar los stubs OpenAPI
+# se define un contrato nuevo, se agrega el delta correspondiente.
+skip_specs: true
