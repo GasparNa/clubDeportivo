@@ -354,14 +354,39 @@ export class UsuariosService {
   }
 
   /**
-   * Listar usuarios (Admin).
+   * Obtener el detalle plano de un usuario (Admin).
+   * No expone password_hash, id_contacto_login ni relaciones anidadas.
+   */
+  async getUsuarioDetalle(id_usuario: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id_usuario },
+      include: {
+        persona: {
+          include: {
+            contactos: {
+              where: { estado: 'ACTIVO' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    return this.mapUsuarioDetalle(usuario);
+  }
+
+  /**
+   * Listar usuarios (Admin) en forma plana, reutilizando el mapeo de RF-USR-01.
    */
   async listarUsuarios(rol?: string, estado?: string) {
     const where: any = {};
     if (rol) where.rol = rol;
     if (estado) where.estado = estado;
 
-    return this.prisma.usuario.findMany({
+    const usuarios = await this.prisma.usuario.findMany({
       where,
       include: {
         persona: {
@@ -374,6 +399,41 @@ export class UsuariosService {
       },
       orderBy: { creado_en: 'desc' },
     });
+
+    return usuarios.map((usuario) => this.mapUsuarioDetalle(usuario));
+  }
+
+  /**
+   * Mapea un usuario con persona y contactos activos a la forma plana que
+   * consumen las pantallas de administración.
+   */
+  private mapUsuarioDetalle(usuario: any) {
+    const contactos = usuario.persona?.contactos ?? [];
+    const email =
+      contactos.find(
+        (c) => c.tipo_contacto === 'EMAIL' && c.estado === 'ACTIVO',
+      )?.valor_contacto ?? '';
+    const telefono =
+      contactos.find(
+        (c) => c.tipo_contacto === 'TELEFONO' && c.estado === 'ACTIVO',
+      )?.valor_contacto ?? null;
+
+    return {
+      id: usuario.id_usuario,
+      id_usuario: usuario.id_usuario,
+      nombre: usuario.persona?.nombre,
+      apellido: usuario.persona?.apellido,
+      email,
+      dni: usuario.persona?.dni,
+      cuil: usuario.persona?.cuil ?? null,
+      fecha_nacimiento: usuario.persona?.fecha_nacimiento ?? null,
+      telefono,
+      rol: usuario.rol,
+      estado: usuario.estado,
+      infracciones_equipamiento: usuario.incumplimientos_equipamiento,
+      creado_en: usuario.creado_en,
+      actualizado_en: usuario.actualizado_en,
+    };
   }
 
   /**

@@ -1,13 +1,16 @@
 // Stub CJS para @nestjs/passport - compatible con Jest 29
 "use strict";
 
-class AuthGuard {
-  constructor(strategy) {
-    this.strategy = strategy;
-  }
-  canActivate(context) {
-    return true;
-  }
+// La API real es una factory: AuthGuard('jwt') devuelve una clase guard.
+function AuthGuard(strategy) {
+  return class {
+    constructor() {
+      this.strategy = strategy;
+    }
+    canActivate() {
+      return true;
+    }
+  };
 }
 
 const PassportModule = {

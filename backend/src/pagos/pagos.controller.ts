@@ -6,12 +6,14 @@ import {
   Param,
   Query,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PagosService } from './pagos.service';
 import {
   CreatePagoDto,
   AuditoriaQueryDto,
+  CreateNotificacionDto,
 } from './dto/pagos.dto';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -73,18 +75,16 @@ export class PagosController {
   // Notificaciones
   // ════════════════════════════════════════════════════════════════════
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('notifications')
+  async listarNotificaciones(@Request() req) {
+    return this.pagosService.listarNotificaciones(req.user.id_usuario);
+  }
+
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('GERENTE', 'ADMINISTRADOR')
   @Post('notifications')
-  async enviarNotificacion(
-    @Body()
-    body: {
-      id_usuario: string;
-      tipo: string;
-      mensaje: string;
-      id_reserva?: string;
-    },
-  ) {
-    return this.pagosService.enviarNotificacion(body);
+  async enviarNotificacion(@Body() dto: CreateNotificacionDto) {
+    return this.pagosService.enviarNotificacion(dto);
   }
 }

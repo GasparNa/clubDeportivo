@@ -313,4 +313,218 @@ describe('ReservasService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('getAlquiler', () => {
+    const detalleBase = {
+      id_detalle: 'uuid-det-1',
+      id_reserva: 'uuid-reserva-1',
+      id_equipamiento: 'uuid-equip-1',
+      cantidad: 2,
+      precio_unitario: '500.00',
+      subtotal: '1000.00',
+      estado_devolucion: 'PENDIENTE',
+      creado_en: new Date('2026-03-01T10:00:00Z'),
+      equipamiento: {
+        id_equipamiento: 'uuid-equip-1',
+        nombre: 'Raqueta',
+        precio_alquiler: '500.00',
+      },
+      reserva: {
+        id_reserva: 'uuid-reserva-1',
+        id_persona: 'uuid-socio-1',
+      },
+    };
+
+    it('debe permitir a ADMINISTRADOR consultar cualquier alquiler', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findUnique.mockResolvedValue(
+        detalleBase,
+      );
+
+      const result = await service.getAlquiler('uuid-det-1', {
+        id_usuario: 'uuid-admin-1',
+        rol: 'ADMINISTRADOR',
+      });
+
+      expect(result).toMatchObject({
+        id_detalle: 'uuid-det-1',
+        id_reserva: 'uuid-reserva-1',
+        id_equipamiento: 'uuid-equip-1',
+        cantidad: 2,
+        precio_unitario: 500,
+        subtotal: 1000,
+        equipamiento: {
+          id_equipamiento: 'uuid-equip-1',
+          nombre: 'Raqueta',
+          precio_alquiler: 500,
+        },
+      });
+    });
+
+    it('debe permitir a GERENTE consultar cualquier alquiler', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findUnique.mockResolvedValue(
+        detalleBase,
+      );
+
+      const result = await service.getAlquiler('uuid-det-1', {
+        id_usuario: 'uuid-gerente-1',
+        rol: 'GERENTE',
+      });
+
+      expect(result).toHaveProperty('id_detalle', 'uuid-det-1');
+    });
+
+    it('debe permitir al socio consultar un alquiler de su propia reserva', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findUnique.mockResolvedValue(
+        detalleBase,
+      );
+
+      const result = await service.getAlquiler('uuid-det-1', {
+        id_usuario: 'uuid-socio-1',
+        rol: 'SOCIO',
+      });
+
+      expect(result).toHaveProperty('id_detalle', 'uuid-det-1');
+    });
+
+    it('debe rechazar a un socio el alquiler de otra persona con 403', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findUnique.mockResolvedValue(
+        detalleBase,
+      );
+
+      await expect(
+        service.getAlquiler('uuid-det-1', {
+          id_usuario: 'uuid-socio-2',
+          rol: 'SOCIO',
+        }),
+      ).rejects.toThrow('No puedes consultar alquileres de otro usuario');
+    });
+
+    it('debe lanzar NotFoundException si el alquiler no existe', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getAlquiler('uuid-inexistente', {
+          id_usuario: 'uuid-admin-1',
+          rol: 'ADMINISTRADOR',
+        }),
+      ).rejects.toThrow('Detalle de alquiler no encontrado');
+    });
+
+    it('debe lanzar ForbiddenException sin actor autenticado antes de consultar la base', async () => {
+      await expect(
+        service.getAlquiler('uuid-det-1', undefined),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.getAlquiler('uuid-det-1', { rol: 'SOCIO' } as any),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(
+        mockPrisma.detalleAlquilerEquipamiento.findUnique,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listarAlquileres', () => {
+    it('debe filtrar por reservas propias cuando el actor es SOCIO', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findMany.mockResolvedValue([]);
+
+      await service.listarAlquileres(undefined, {
+        id_usuario: 'uuid-socio-1',
+        rol: 'SOCIO',
+      });
+
+      expect(
+        mockPrisma.detalleAlquilerEquipamiento.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { reserva: { id_persona: 'uuid-socio-1' } },
+        }),
+      );
+    });
+
+    it('debe permitir al socio filtrar por una reserva propia', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue({
+        id_persona: 'uuid-socio-1',
+      });
+      mockPrisma.detalleAlquilerEquipamiento.findMany.mockResolvedValue([]);
+
+      await service.listarAlquileres('uuid-reserva-1', {
+        id_usuario: 'uuid-socio-1',
+        rol: 'SOCIO',
+      });
+
+      expect(
+        mockPrisma.detalleAlquilerEquipamiento.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id_reserva: 'uuid-reserva-1',
+            reserva: { id_persona: 'uuid-socio-1' },
+          },
+        }),
+      );
+    });
+
+    it('debe responder 403 si el socio filtra por una reserva ajena', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue({
+        id_persona: 'uuid-socio-2',
+      });
+
+      await expect(
+        service.listarAlquileres('uuid-reserva-ajena', {
+          id_usuario: 'uuid-socio-1',
+          rol: 'SOCIO',
+        }),
+      ).rejects.toThrow('No puedes consultar alquileres de otro usuario');
+
+      expect(
+        mockPrisma.detalleAlquilerEquipamiento.findMany,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('debe permitir a GERENTE listar sin restricciones de titularidad', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findMany.mockResolvedValue([]);
+
+      await service.listarAlquileres('uuid-reserva-1', {
+        id_usuario: 'uuid-gerente-1',
+        rol: 'GERENTE',
+      });
+
+      expect(mockPrisma.reserva.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrisma.detalleAlquilerEquipamiento.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id_reserva: 'uuid-reserva-1' } }),
+      );
+    });
+
+    it('debe permitir a ADMINISTRADOR listar todos los alquileres', async () => {
+      mockPrisma.detalleAlquilerEquipamiento.findMany.mockResolvedValue([]);
+
+      await service.listarAlquileres(undefined, {
+        id_usuario: 'uuid-admin-1',
+        rol: 'ADMINISTRADOR',
+      });
+
+      expect(
+        mockPrisma.detalleAlquilerEquipamiento.findMany,
+      ).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+    });
+
+    it('debe lanzar ForbiddenException sin actor autenticado antes de consultar la base', async () => {
+      await expect(
+        service.listarAlquileres(undefined, undefined),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.listarAlquileres('uuid-reserva-1', { rol: 'SOCIO' } as any),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockPrisma.reserva.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrisma.detalleAlquilerEquipamiento.findMany,
+      ).not.toHaveBeenCalled();
+    });
+  });
 });

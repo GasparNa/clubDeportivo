@@ -4,6 +4,7 @@ import {
   CreatePagoDto,
   UpdatePagoEstadoDto,
   AuditoriaQueryDto,
+  CreateNotificacionDto,
 } from './dto/pagos.dto';
 
 @Injectable()
@@ -195,15 +196,46 @@ export class PagosService {
   // ════════════════════════════════════════════════════════════════════
 
   /**
+   * Bandeja de notificaciones del usuario autenticado, derivada de auditoría.
+   */
+  async listarNotificaciones(id_usuario: string) {
+    const registros = await this.prisma.registroAuditoria.findMany({
+      where: {
+        id_usuario,
+        entidad: 'notificaciones',
+        evento: { startsWith: 'NOTIFICACION_' },
+      },
+      orderBy: { fecha: 'desc' },
+      take: 100,
+    });
+
+    const tiposConocidos = ['INFO', 'WARNING', 'ERROR', 'SUCCESS'];
+
+    return registros.map((registro) => {
+      const detalle = (registro.detalle ?? {}) as Record<string, any>;
+      const sufijo = registro.evento.slice('NOTIFICACION_'.length);
+      const tipo = tiposConocidos.includes(sufijo) ? sufijo : 'INFO';
+      const titulo =
+        typeof detalle.asunto === 'string' && detalle.asunto.trim()
+          ? detalle.asunto
+          : 'Notificación';
+
+      return {
+        id: registro.id_registro,
+        titulo,
+        mensaje: typeof detalle.mensaje === 'string' ? detalle.mensaje : '',
+        tipo,
+        leida: false,
+        creado_en: registro.fecha,
+      };
+    });
+  }
+
+  /**
    * Enviar notificación (simulada - registra en auditoría).
    * En producción, aquí se integraría con un servicio de email (SendGrid, etc.)
    */
-  async enviarNotificacion(params: {
-    id_usuario: string;
-    tipo: string;
-    mensaje: string;
-    id_reserva?: string;
-  }) {
+  async enviarNotificacion(params: CreateNotificacionDto) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id_usuario: params.id_usuario },
       include: {
@@ -223,16 +255,18 @@ export class PagosService {
     }
 
     const email = usuario.persona.contactos[0]?.valor_contacto || 'sin-email';
+    const tipo = (params.tipo ?? 'INFO').toUpperCase();
 
     // Registrar la notificación en auditoría
     await this.prisma.registroAuditoria.create({
       data: {
         actor_tipo: 'SISTEMA',
         id_usuario: params.id_usuario,
-        evento: `NOTIFICACION_${params.tipo.toUpperCase()}`,
+        evento: `NOTIFICACION_${tipo}`,
         entidad: 'notificaciones',
         id_entidad: params.id_reserva || null,
         detalle: {
+          asunto: params.asunto,
           email,
           mensaje: params.mensaje,
           enviado_en: new Date().toISOString(),
@@ -243,7 +277,7 @@ export class PagosService {
     return {
       message: 'Notificación enviada (simulada)',
       email,
-      tipo: params.tipo,
+      tipo,
     };
   }
 }
