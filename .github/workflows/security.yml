@@ -1,0 +1,84 @@
+name: Security
+
+on:
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4.2.2
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3.28.17
+        with:
+          languages: javascript-typescript
+
+      - name: Compilar proyecto
+        uses: github/codeql-action/autobuild@v3.28.17
+
+      - name: Analizar con CodeQL
+        uses: github/codeql-action/analyze@v3.28.17
+        with:
+          category: "/language:javascript-typescript"
+
+  images:
+    name: Escaneo de imágenes Docker
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4.2.2
+
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@v3.10.0
+
+      - name: Construir imagen backend
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: runtime
+          tags: club-deportivo/backend:security
+          load: true
+          push: false
+
+      - name: Construir imagen frontend
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: runtime
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
+          tags: club-deportivo/frontend:security
+          load: true
+          push: false
+
+      - name: Escanear backend con Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: club-deportivo/backend:security
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Escanear frontend con Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: club-deportivo/frontend:security
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
