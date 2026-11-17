@@ -38,5 +38,5 @@
 - [x] 5.3 Ejecutar `cd backend && pnpm run typecheck` y corregir cualquier error
 - [x] 5.4 Ejecutar `cd backend && pnpm run test` y confirmar que toda la suite pasa
 - [x] 5.5 Verificar que no haya cambios en `backend/prisma/` ni secretos en el diff; revisar con `git diff --stat` y `git diff`
-- [ ] 5.6 A cargo del usuario (no ejecutar en el apply): hacer commit con mensaje convencional, push de la rama y abrir PR contra `main`; verificar con `gh pr view --web`
+- [x] 5.6 A cargo del usuario (no ejecutar en el apply): hacer commit con mensaje convencional, push de la rama y abrir PR contra `main`; verificar con `gh pr view --web` — PR #6 mergeado
 - [x] 5.7 Ejecutar `pnpm exec openspec validate --all --strict` y confirmar que la validación global pasa
