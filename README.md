@@ -9,9 +9,9 @@ El sistema permite la gestión de reservas de canchas por disciplina (Tenis, Fú
 ### Roles y funciones principales
 
 - **Socio / Usuario Final**: se autoregistra, visualiza agendas libres, reserva y cancela con anticipación, y edita sus datos de contacto.
-- **Gerente**: gestiona altas de socios, reservas (socios o no socios), stock y devoluciones de equipamiento, check-in y finalización de turnos en Secretaría.
+- **Gerente**: gestiona altas de socios, reservas de usuarios ACTIVOS, stock y devoluciones de equipamiento, check-in y finalización de turnos en Secretaría.
 - **Administrador**: todas las funciones del Gerente, más la gestión completa del catálogo (disciplinas/canchas), alta de personal, reactivación de cuentas suspendidas y auditoría.
-- **No Socio (Invitado)**: persona sin cuenta que puede tener una reserva asignada, siempre cargada por Gerencia/Administración.
+- **No Socio (Invitado)**: persona sin cuenta; solo usuarios ACTIVOS pueden reservar, por lo que un invitado sin cuenta no puede tener reservas asignadas.
 
 ### Dominios deportivos
 
@@ -80,7 +80,7 @@ servidor se aprovisiona una sola vez (directorio `/opt/club-deportivo`,
 - Check-in y finalización de turno en Secretaría.
 - Gestión de stock y devoluciones de equipamiento con control de demoras.
 - Auditoría de acciones y trazabilidad de eventos.
-- Regla de negocio: toda reserva pertenece exclusivamente a un Socio **o** a un No Socio (exactamente uno de ambos).
+- Regla de negocio: solo usuarios ACTIVOS pueden reservar (los invitados sin cuenta no pueden tener reservas).
 
 ## Instrucciones de ejecución
 

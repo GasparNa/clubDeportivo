@@ -84,7 +84,7 @@ Aspectos relevantes para el despliegue:
 | `backend/prisma/schema.prisma` | PascalCase, con `@@map` a snake_case | 12 modelos, alineados con las tablas del esquema |
 | `backend/db/esquema-final.sql` | snake_case plural | 12 tablas, 18 triggers, RLS, seed de disciplinas |
 | `docs/migracion-inicial.sql` | PascalCase | Generado por Prisma, sin triggers |
-| `backend/db/schema.sql`, `esquemaUltimo.sql`, `persona.sql` | — | Versiones históricas obsoletas |
+| `backend/db/schema.sql`, `schema-guada.sql`, `esquemaUltimo.sql`, `persona.sql` | — | Históricos: `schema.sql` y `schema-guada.sql` están en `backend/db/historico/`; `esquemaUltimo.sql` y `persona.sql` fueron eliminados (ver historial de git) |
 
 **Reglas de negocio que viven en triggers** (`esquema-final.sql`): máximo 2 reservas `CONFIRMADA` por usuario (advisory lock), anticipación de 1 día para cancelar reservas autogestionadas, decremento/restauración de stock de equipamiento, suspensión automática a las 3 infracciones, auditoría append-only.
 

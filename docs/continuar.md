@@ -1,3 +1,5 @@
+Documento histórico; el estado vigente está en openspec/ y AGENTS.md
+
 # 📄 Resumen del Proyecto — Club Deportivo (Sistema de Reservas)
 
 > Archivo para retomar el trabajo. Contiene el estado actual del repositorio, las decisiones de despliegue ya tomadas y las tareas pendientes priorizadas.
