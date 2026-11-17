@@ -96,9 +96,33 @@ export class ReservasService {
 
   /**
    * Crear una nueva reserva.
-   * Valida: conflicto de horario, usuario activo, máximo 2 reservas.
+   * Valida actor, titularidad por rol, conflicto de horario, usuario activo y máximo 2 reservas.
    */
-  async crearReserva(dto: CreateReservaDto, userId?: string) {
+  async crearReserva(dto: CreateReservaDto, actor?: ActorReserva) {
+    if (!actor?.id_usuario) {
+      throw new ForbiddenException('Se requiere autenticación');
+    }
+
+    let id_persona: string;
+    let origen: string;
+
+    if (this.esGerencia(actor)) {
+      if (!dto.id_persona) {
+        throw new BadRequestException('Gerencia debe indicar el titular de la reserva');
+      }
+      id_persona = dto.id_persona;
+      origen = dto.origen ?? 'AUTOGESTIONADA';
+    } else {
+      if (dto.origen === 'MANUAL_GERENCIA') {
+        throw new ForbiddenException('Solo gerencia puede crear reservas manuales');
+      }
+      if (dto.id_persona && dto.id_persona !== actor.id_usuario) {
+        throw new ForbiddenException('No puedes crear reservas a nombre de otro usuario');
+      }
+      id_persona = dto.id_persona ?? actor.id_usuario;
+      origen = 'AUTOGESTIONADA';
+    }
+
     const fecha = new Date(dto.fecha);
 
     // Validar que la franja existe y corresponde al día de la semana
@@ -138,7 +162,7 @@ export class ReservasService {
 
     // Validar usuario activo (requerido para toda reserva)
     const usuario = await this.prisma.usuario.findUnique({
-      where: { id_usuario: dto.id_persona },
+      where: { id_usuario: id_persona },
     });
 
     if (!usuario) {
@@ -152,7 +176,7 @@ export class ReservasService {
     // Validar máximo 2 reservas confirmadas
     const count = await this.prisma.reserva.count({
       where: {
-        id_persona: dto.id_persona,
+        id_persona,
         estado: 'CONFIRMADA',
       },
     });
@@ -168,8 +192,8 @@ export class ReservasService {
       data: {
         id_franja: dto.id_franja,
         fecha,
-        id_persona: dto.id_persona,
-        origen: dto.origen || 'AUTOGESTIONADA',
+        id_persona,
+        origen,
         monto_total: franja.cancha.precio_base,
       },
       include: {

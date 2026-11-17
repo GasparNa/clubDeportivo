@@ -55,7 +55,7 @@ export class ReservasController {
   @UseGuards(AuthGuard('jwt'), ActiveUserGuard)
   @Post('reservations')
   async crearReserva(@Body() dto: CreateReservaDto, @Request() req) {
-    return this.reservasService.crearReserva(dto, req.user?.id_usuario);
+    return this.reservasService.crearReserva(dto, req.user);
   }
 
   /**
