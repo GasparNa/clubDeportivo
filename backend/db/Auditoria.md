@@ -1,14 +1,14 @@
 # Auditoría del Modelo de Datos — Club Deportivo
 
-Documento de trabajo para revisar en clase la unificación de `backend/db/schema.sql` (v1) y `backend/db/schema-guada.sql` (v2) en `backend/db/esquema-final.sql`, contra la fuente de verdad `docs/modelo-datos.md`.
+Documento de trabajo para revisar en clase la unificación de `backend/db/historico/schema.sql` (v1) y `backend/db/historico/schema-guada.sql` (v2) en `backend/db/esquema-final.sql`, contra la fuente de verdad `docs/modelo-datos.md`.
 
 ## 1. Resumen ejecutivo
 
 | Documento | Rol |
 |---|---|
 | `docs/modelo-datos.md` | Fuente de verdad del modelo de negocio (RF/RNF) |
-| `backend/db/schema.sql` (v1) | Borrador con PKs `SERIAL`, más simple, con un bug de concurrencia en `reservas` |
-| `backend/db/schema-guada.sql` (v2) | Borrador con PKs `UUID`, triggers de negocio, RLS deny-all, más completo pero con brechas propias |
+| `backend/db/historico/schema.sql` (v1) | Borrador con PKs `SERIAL`, más simple, con un bug de concurrencia en `reservas` |
+| `backend/db/historico/schema-guada.sql` (v2) | Borrador con PKs `UUID`, triggers de negocio, RLS deny-all, más completo pero con brechas propias |
 | `backend/db/esquema-final.sql` | **Esquema definitivo**: toma la base de v2 y corrige/completa con lo mejor de v1 y lo que faltaba en ambos |
 
 ## 2. Auditoría comparativa contra `modelo-datos.md`
@@ -92,6 +92,6 @@ Ninguno de los dos borradores implementaba estas reglas a nivel de base de datos
 ## 6. Archivos de referencia
 
 - Fuente de verdad: [docs/modelo-datos.md](../../docs/modelo-datos.md)
-- Borrador v1: [backend/db/schema.sql](./schema.sql)
-- Borrador v2: [backend/db/schema-guada.sql](./schema-guada.sql)
+- Borrador v1: [backend/db/historico/schema.sql](./historico/schema.sql)
+- Borrador v2: [backend/db/historico/schema-guada.sql](./historico/schema-guada.sql)
 - **Esquema final:** [backend/db/esquema-final.sql](./esquema-final.sql)

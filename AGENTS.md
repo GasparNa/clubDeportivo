@@ -41,7 +41,6 @@ terraform fmt -check -recursive && terraform validate
 # GitHub CLI — gestión de fases
 gh pr list --label "feature"                          # Ver PRs de features activos
 gh run list --branch main --limit 5                   # Últimos CI runs en main
-./scripts/phase-workflow.sh <num> <nombre> <slug>     # Iniciar nueva fase (crea issue + rama + PR draft)
 ```
 
 **Scripts disponibles en `backend/package.json`:** `test`, `test:e2e`, `lint`, `typecheck`.  
@@ -57,7 +56,7 @@ gh run list --branch main --limit 5                   # Últimos CI runs en main
 
 ## Reglas clave de negocio (de los triggers)
 
-- La reserva pertenece exactamente a una `Persona` (un `Usuario` o un invitado sin cuenta).
+- Solo usuarios ACTIVOS pueden reservar; la reserva pertenece exactamente a una `Persona`.
 - Máximo 2 reservas `CONFIRMADA` por `Usuario` (advisory lock).
 - La cancelación requiere 1 día de anticipación para reservas de autoservicio (`AUTOGESTIONADA`).
 - Alquiler de equipamiento: stock se decrementa al insertar, se restaura al devolver/cancelar.
@@ -232,45 +231,6 @@ gh pr merge feature/<nombre-fase> --squash --delete-branch
 gh issue close <issue-number> --comment "Fase completada. PR: #<pr-number>"
 ```
 
-#### Script de automatización de fase (`scripts/phase-workflow.sh`)
-
-```bash
-#!/bin/bash
-# Uso: ./scripts/phase-workflow.sh <numero-fase> <nombre-fase> <slug-rama>
-# Ejemplo: ./scripts/phase-workflow.sh 5 "Integración y Validación" "integracion-validacion"
-
-PHASE_NUM=$1
-PHASE_NAME=$2
-BRANCH_SLUG=$3
-
-echo "🚀 Iniciando Fase $PHASE_NUM: $PHASE_NAME"
-
-# Crear issue
-ISSUE_URL=$(gh issue create \
-  --title "Fase $PHASE_NUM: $PHASE_NAME" \
-  --body "Implementar tareas de la fase $PHASE_NUM según \`openspec/changes/club-deportivo-reservas/tasks.md\`" \
-  --label "feature,phase-$PHASE_NUM" \
-  --milestone "MVP Club Deportivo")
-
-echo "✅ Issue creado: $ISSUE_URL"
-
-# Crear rama
-git checkout main && git pull
-git checkout -b "feature/$BRANCH_SLUG"
-git push -u origin "feature/$BRANCH_SLUG"
-
-# Crear PR draft
-gh pr create \
-  --base main \
-  --head "feature/$BRANCH_SLUG" \
-  --title "feat: Fase $PHASE_NUM — $PHASE_NAME" \
-  --body "Implementa tareas de la Fase $PHASE_NUM. Ver \`tasks.md\`." \
-  --draft \
-  --label "feature"
-
-echo "🎯 Rama feature/$BRANCH_SLUG lista. PR draft creado. ¡A programar!"
-```
-
 ### Flujo completo de CI/CD por fase
 
 ```mermaid
@@ -352,4 +312,3 @@ Variables en el servidor (`/opt/club-deportivo/.env.prod`, permisos `600`):
 - `docs/despliegueContinuo.md` — runbook del despliegue continuo (secretos, servidor, DNS, rollback)
 - `infra/terraform/` — infraestructura como código (legado, no aplicada)
 - `scripts/smoke-test.sh` — verificación de un despliegue
-- `scripts/phase-workflow.sh` — script de automatización para iniciar una nueva fase
