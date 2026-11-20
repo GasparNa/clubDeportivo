@@ -14,12 +14,6 @@ on:
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'infra/**'
-      - '.gitignore'
-      - 'render.yaml'
 
 permissions:
   contents: read
@@ -32,6 +26,7 @@ jobs:
   calidad:
     name: Lint y pruebas unitarias
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Descargar código
@@ -40,7 +35,7 @@ jobs:
       - name: Configurar pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 12.8.1
+          version: 12.10.1
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -74,3 +69,76 @@ jobs:
 
       - name: Ejecutar pruebas unitarias
         run: pnpm --filter club-deportivo-backend exec jest --runInBand
+
+  integracion-bd:
+    name: Pruebas de integración con PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: club_deportivo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d club_deportivo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/club_deportivo_test
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Ejecutar pruebas de integración con PostgreSQL
+        run: pnpm --filter club-deportivo-backend run test:db
+
+  frontend:
+    name: Build del frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Construir el frontend
+        run: pnpm --filter frontend run build

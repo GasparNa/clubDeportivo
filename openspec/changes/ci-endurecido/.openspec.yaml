@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-11-16
+# Change de tooling/CI: no altera comportamiento del sistema ni contratos de la
+# API. `openspec/specs/operacion-despliegue/spec.md` no describe requisitos de
+# CI/CD (solo health, CORS y escucha), así que no hay delta de spec que agregar.
+skip_specs: true
