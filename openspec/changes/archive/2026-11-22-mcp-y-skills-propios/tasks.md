@@ -23,4 +23,4 @@
 
 ## 6. PR
 
-- [ ] 6.1 Preparar rama, commits convencionales y descripción de PR usando la plantilla/secciones requeridas (apoyándose en `armar-descripcion-pr` si aplica); abrir PR con CI en verde, revisión de un compañero y archivar/cerrar el change según flujo del repo. Verificar que la descripción incluye la atribución requerida por el entorno y que el alcance coincide con `tasks.md`.
+- [x] 6.1 Preparar rama, commits convencionales y descripción de PR usando la plantilla/secciones requeridas (apoyándose en `armar-descripcion-pr` si aplica); abrir PR con CI en verde, revisión de un compañero y archivar/cerrar el change según flujo del repo. Verificar que la descripción incluye la atribución requerida por el entorno y que el alcance coincide con `tasks.md`.
