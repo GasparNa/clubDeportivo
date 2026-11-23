@@ -10,7 +10,7 @@ El repositorio no tiene una automatización dedicada para detectar vulnerabilida
 - Agrupar actualizaciones menores y parches por ecosistema.
 - Ejecutar CodeQL para JavaScript/TypeScript en pull requests hacia `main` y semanalmente.
 - Construir y escanear las imágenes de backend y frontend con Trivy en modo solo reporte.
-- Publicar los hallazgos en el resumen del job y, si los permisos del repositorio lo permiten, como SARIF.
+- Mostrar los hallazgos de Trivy en el log del job en formato tabla; no se genera SARIF ni resumen del job.
 - Fijar todas las acciones de GitHub a versiones concretas.
 
 ## Capabilities
