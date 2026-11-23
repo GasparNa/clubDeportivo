@@ -1,0 +1,11 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "rootDir": "..",
+  "testMatch": ["<rootDir>/test/**/*.e2e-spec.ts"],
+  "transform": {
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/test/db/tsconfig.db.json" }]
+  },
+  "setupFiles": ["<rootDir>/src/jest-setup.ts"],
+  "passWithNoTests": true
+}

@@ -9,6 +9,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Actor } from '../auth/actor';
 import { PagosService } from './pagos.service';
 import {
   CreatePagoDto,
@@ -36,16 +37,27 @@ export class PagosController {
   @UseGuards(AuthGuard('jwt'))
   @Get('payments')
   async listarPagos(
+    @Request() req,
     @Query('date_from') fecha_desde?: string,
     @Query('date_to') fecha_hasta?: string,
   ) {
-    return this.pagosService.listarPagos({ fecha_desde, fecha_hasta });
+    const actor: Actor = {
+      id_persona: req.user?.id_usuario,
+      rol: req.user?.rol,
+    };
+
+    return this.pagosService.listarPagos({ fecha_desde, fecha_hasta }, actor);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('payments/reservation/:id')
-  async getPagosReserva(@Param('id') id: string) {
-    return this.pagosService.getPagosReserva(id);
+  async getPagosReserva(@Param('id') id: string, @Request() req) {
+    const actor: Actor = {
+      id_persona: req.user?.id_usuario,
+      rol: req.user?.rol,
+    };
+
+    return this.pagosService.getPagosReserva(id, actor);
   }
 
   // ════════════════════════════════════════════════════════════════════

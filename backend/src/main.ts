@@ -9,25 +9,33 @@ import { NestFactory } from '@nestjs/core';
 import compression from 'compression';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { validarJwtSecret } from './auth/jwt.config';
 import { JsonLogger } from './common/json-logger';
 
 const esProduccion = process.env.NODE_ENV === 'production';
 const logger = new Logger('Bootstrap');
 
-/**
- * En producción el proceso no debe arrancar con configuración incompleta.
- * Falla rápido con un mensaje JSON para que el orquestador lo muestre.
- */
-function validarEntorno(): void {
-  if (!esProduccion) {
+export function validarEntorno(): void {
+  const obligatorias = ['JWT_SECRET', 'DATABASE_URL'];
+  const faltantes = obligatorias.filter((clave) => !process.env[clave]?.trim());
+  const problemas = [...faltantes];
+
+  if (!faltantes.includes('JWT_SECRET')) {
+    const motivo = validarJwtSecret(process.env.JWT_SECRET);
+
+    if (motivo) {
+      problemas.push(`JWT_SECRET inválido: ${motivo}`);
+    }
+  }
+
+  if (!problemas.length) {
     return;
   }
 
-  const obligatorias = ['JWT_SECRET', 'DATABASE_URL'];
-  const faltantes = obligatorias.filter((clave) => !process.env[clave]?.trim());
+  const mensaje = `Variables de entorno obligatorias faltantes o inválidas: ${problemas.join(', ')}`;
 
-  if (!faltantes.length) {
-    return;
+  if (!esProduccion) {
+    throw new Error(mensaje);
   }
 
   process.stderr.write(
@@ -35,7 +43,7 @@ function validarEntorno(): void {
       time: new Date().toISOString(),
       level: 'fatal',
       context: 'Bootstrap',
-      message: `Variables de entorno obligatorias faltantes: ${faltantes.join(', ')}`,
+      message: mensaje,
     })}\n`,
   );
 
@@ -67,6 +75,8 @@ async function bootstrap() {
     AppModule,
     esProduccion ? { logger: new JsonLogger() } : {},
   );
+
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   // Cierra Prisma y los recursos de Nest ante SIGTERM/SIGINT (App Runner, Docker).
   app.enableShutdownHooks();
@@ -105,4 +115,6 @@ async function bootstrap() {
   );
 }
 
-bootstrap();
+if (require.main === module) {
+  void bootstrap();
+}

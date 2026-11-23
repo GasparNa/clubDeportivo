@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Actor, esGerencia } from '../auth/actor';
 import {
   CreatePagoDto,
   UpdatePagoEstadoDto,
@@ -59,14 +65,25 @@ export class PagosService {
   }
 
   /**
-   * Consultar estado de pagos de una reserva.
+   * Consultar estado de pagos de una reserva con titularidad del actor.
    */
-  async getPagosReserva(id_reserva: string) {
+  async getPagosReserva(id_reserva: string, actor: Actor) {
+    if (!actor?.id_persona || !actor?.rol) {
+      throw new ForbiddenException('Se requiere autenticación');
+    }
+
     const reserva = await this.prisma.reserva.findUnique({
       where: { id_reserva },
     });
 
     if (!reserva) {
+      throw new NotFoundException('Reserva no encontrada');
+    }
+
+    if (
+      !esGerencia(actor) &&
+      reserva.id_persona !== actor.id_persona
+    ) {
       throw new NotFoundException('Reserva no encontrada');
     }
 
@@ -92,12 +109,24 @@ export class PagosService {
   }
 
   /**
-   * Listar todos los pagos (Admin/Gerente).
+   * Listar pagos con titularidad del actor.
+   * Para SOCIO se filtra por el titular copiado en registroAuditoria.id_usuario.
    */
-  async listarPagos(filtros: { fecha_desde?: string; fecha_hasta?: string }) {
+  async listarPagos(
+    filtros: { fecha_desde?: string; fecha_hasta?: string },
+    actor: Actor,
+  ) {
+    if (!actor?.id_persona || !actor?.rol) {
+      throw new ForbiddenException('Se requiere autenticación');
+    }
+
     const where: any = {
       evento: { in: ['PAGO_REGISTRADO', 'PAGO_REEMBOLSADO', 'PAGO_FALLIDO'] },
     };
+
+    if (!esGerencia(actor)) {
+      where.id_usuario = actor.id_persona;
+    }
 
     if (filtros.fecha_desde || filtros.fecha_hasta) {
       where.fecha = {};

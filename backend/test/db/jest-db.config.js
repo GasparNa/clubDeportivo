@@ -8,6 +8,7 @@ module.exports = {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.db.json' }],
   },
   globalSetup: '<rootDir>/global-setup.js',
+  setupFiles: ['<rootDir>/jest-setup.js'],
   maxWorkers: 1,
   testTimeout: 30000,
 };

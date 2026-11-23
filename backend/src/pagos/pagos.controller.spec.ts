@@ -18,6 +18,12 @@ function detalleDe(metodo: keyof PagosController) {
   return Reflect.getMetadata(ROLES_KEY, PagosController.prototype[metodo]);
 }
 
+function esAuthGuardJwt(guard: any) {
+  if (typeof guard !== 'function' || guard === RolesGuard) return false;
+  const instancia = new guard();
+  return instancia.strategy === 'jwt';
+}
+
 function contextoPara(metodo: keyof PagosController, rol: string) {
   return {
     getHandler: () => PagosController.prototype[metodo],
@@ -43,6 +49,8 @@ describe('PagosController - notificaciones', () => {
 
   beforeEach(() => {
     mockService = {
+      listarPagos: jest.fn(),
+      getPagosReserva: jest.fn(),
       listarNotificaciones: jest.fn(),
       enviarNotificacion: jest.fn(),
     };
@@ -124,6 +132,53 @@ describe('PagosController - notificaciones', () => {
 
       expect(mockService.enviarNotificacion).toHaveBeenCalledWith(dto);
       expect(result).toHaveProperty('message', 'Notificación enviada (simulada)');
+    });
+  });
+});
+
+describe('PagosController - titularidad', () => {
+  let controller: PagosController;
+  let mockService: any;
+
+  beforeEach(() => {
+    mockService = {
+      listarPagos: jest.fn().mockResolvedValue([]),
+      getPagosReserva: jest.fn().mockResolvedValue({ pagos: [] }),
+    };
+    controller = new PagosController(mockService);
+  });
+
+  it("GET payments declara AuthGuard('jwt')", () => {
+    expect(guardsDe('listarPagos').some(esAuthGuardJwt)).toBe(true);
+  });
+
+  it('GET payments pasa el actor con id_persona del usuario autenticado', async () => {
+    const req = {
+      user: { id_usuario: 'uuid-socio-1', rol: 'SOCIO' },
+    };
+
+    await controller.listarPagos(req, '2026-01-01', '2026-01-31');
+
+    expect(mockService.listarPagos).toHaveBeenCalledWith(
+      { fecha_desde: '2026-01-01', fecha_hasta: '2026-01-31' },
+      { id_persona: 'uuid-socio-1', rol: 'SOCIO' },
+    );
+  });
+
+  it("GET payments/reservation/:id declara AuthGuard('jwt')", () => {
+    expect(guardsDe('getPagosReserva').some(esAuthGuardJwt)).toBe(true);
+  });
+
+  it('GET payments/reservation/:id pasa el actor con id_persona del usuario autenticado', async () => {
+    const req = {
+      user: { id_usuario: 'uuid-admin', rol: 'ADMINISTRADOR' },
+    };
+
+    await controller.getPagosReserva(UUID_VALIDO, req);
+
+    expect(mockService.getPagosReserva).toHaveBeenCalledWith(UUID_VALIDO, {
+      id_persona: 'uuid-admin',
+      rol: 'ADMINISTRADOR',
     });
   });
 });
