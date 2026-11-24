@@ -51,6 +51,10 @@ export default function LoginClient() {
         nombre: response.usuario.persona?.nombre ?? response.usuario.nombre,
         apellido: response.usuario.persona?.apellido ?? response.usuario.apellido,
       });
+      if (response.usuario.estado !== "ACTIVO") {
+        router.push("/");
+        return;
+      }
       const redirect = searchParams.get("redirect");
       router.push(redirect || getDashboardPath(response.usuario.rol));
     },

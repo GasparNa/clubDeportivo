@@ -46,8 +46,26 @@ describe('ReservasController - alquileres', () => {
     mockService = {
       listarAlquileres: jest.fn(),
       getAlquiler: jest.fn(),
+      crearReserva: jest.fn(),
+      crearAlquiler: jest.fn(),
     };
     controller = new ReservasController(mockService);
+  });
+
+  describe('POST de creación', () => {
+    it('crearReserva declara ActiveUserGuard además de AuthGuard', () => {
+      const guards = guardsDe('crearReserva');
+
+      expect(guards.some(esAuthGuardJwt)).toBe(true);
+      expect(guards).toContain(ActiveUserGuard);
+    });
+
+    it('crearAlquiler declara ActiveUserGuard además de AuthGuard', () => {
+      const guards = guardsDe('crearAlquiler');
+
+      expect(guards.some(esAuthGuardJwt)).toBe(true);
+      expect(guards).toContain(ActiveUserGuard);
+    });
   });
 
   describe('GET equipment-rentals', () => {

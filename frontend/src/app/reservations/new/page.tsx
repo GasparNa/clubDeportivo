@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AuthenticatedLayout, StatusBadge } from "@/components";
-import { useAuth, useRequireActiveUser } from "@/lib/auth-provider";
+import { AuthenticatedLayout, AvisoCuentaPendiente, StatusBadge } from "@/components";
+import { useAccountAccess, useAuth } from "@/lib/auth-provider";
 import { api } from "@/lib/http-client";
 import { normalizeDisciplina, normalizeCancha, normalizeSlot, isVisibleEntity } from "@/lib/api-mappers";
 import { formatDate, formatCurrency, todayISODate } from "@/lib/format";
@@ -26,7 +26,7 @@ type Step = 1 | 2 | 3 | 4;
 function NewReservationContent() {
   const router = useRouter();
   const { user } = useAuth();
-  const activeUser = useRequireActiveUser();
+  const acceso = useAccountAccess();
 
   // Steps
   const [step, setStep] = useState<Step>(1);
@@ -99,8 +99,16 @@ function NewReservationContent() {
     },
   });
 
-  if (activeUser === null) {
+  if (acceso.kind === "sin-sesion") {
     return null;
+  }
+
+  if (acceso.kind === "inactivo") {
+    return (
+      <AuthenticatedLayout>
+        <AvisoCuentaPendiente estado={acceso.user.estado} />
+      </AuthenticatedLayout>
+    );
   }
 
   const handleConfirm = () => {
