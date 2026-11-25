@@ -1,5 +1,6 @@
 export { ThemeToggle } from "./theme-toggle";
 export { StatusBadge, STATUS_TONE, type BadgeTone } from "./status-badge";
+export { AvisoCuentaPendiente } from "./aviso-cuenta-pendiente";
 export { Navbar } from "./navbar";
 export { Sidebar, AdminSidebar, GerenteSidebar } from "./sidebar";
 export { TimeSlotGrid } from "./time-slot-grid";

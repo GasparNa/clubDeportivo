@@ -57,13 +57,26 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-/** Verifica si el usuario actual tiene estado ACTIVO y puede realizar reservas. */
-export function useRequireActiveUser(): SessionUser | null {
+export type AccountAccess =
+  | { kind: "activo"; user: SessionUser }
+  | { kind: "inactivo"; user: SessionUser }
+  | { kind: "sin-sesion"; user: null };
+
+export function useAccountAccess(): AccountAccess {
   const { user, isAuthenticated } = useAuth();
 
-  if (!isAuthenticated || user?.estado !== "ACTIVO") {
-    return null;
+  if (!isAuthenticated || !user) {
+    return { kind: "sin-sesion", user: null };
   }
 
-  return user;
+  return user.estado === "ACTIVO"
+    ? { kind: "activo", user }
+    : { kind: "inactivo", user };
+}
+
+/** Verifica si el usuario actual tiene estado ACTIVO y puede realizar reservas. */
+export function useRequireActiveUser(): SessionUser | null {
+  const acceso = useAccountAccess();
+
+  return acceso.kind === "activo" ? acceso.user : null;
 }

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AuthenticatedLayout, StatusBadge } from "@/components";
-import { useAuth, useRequireActiveUser } from "@/lib/auth-provider";
+import { AuthenticatedLayout, AvisoCuentaPendiente, StatusBadge } from "@/components";
+import { useAccountAccess, useRequireActiveUser } from "@/lib/auth-provider";
 import { api } from "@/lib/http-client";
 import { normalizeEquipamiento, normalizeReserva } from "@/lib/api-mappers";
 import { formatCurrency } from "@/lib/format";
@@ -19,6 +19,7 @@ import {
 function RentEquipmentContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const acceso = useAccountAccess();
   const activeUser = useRequireActiveUser();
 
   const queryClient = useQueryClient();
@@ -94,8 +95,16 @@ function RentEquipmentContent() {
 
   const totalItems = Object.values(selected).reduce((sum, q) => sum + q, 0);
 
-  if (activeUser === null) {
+  if (acceso.kind === "sin-sesion") {
     return null;
+  }
+
+  if (acceso.kind === "inactivo") {
+    return (
+      <AuthenticatedLayout>
+        <AvisoCuentaPendiente estado={acceso.user.estado} />
+      </AuthenticatedLayout>
+    );
   }
 
   return (
@@ -162,7 +171,7 @@ function RentEquipmentContent() {
                     <button
                       type="button"
                       onClick={() => handleQuantityChange(equip.id, qty - 1)}
-                      disabled={qty <= 0}
+                      disabled={!activeUser || qty <= 0}
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-secondary transition-colors hover:bg-surface-2 disabled:opacity-30"
                     >
                       −
@@ -173,7 +182,7 @@ function RentEquipmentContent() {
                     <button
                       type="button"
                       onClick={() => handleQuantityChange(equip.id, qty + 1)}
-                      disabled={qty >= equip.stock_disponible}
+                      disabled={!activeUser || qty >= equip.stock_disponible}
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-secondary transition-colors hover:bg-surface-2 disabled:opacity-30"
                     >
                       +
@@ -205,7 +214,7 @@ function RentEquipmentContent() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={totalItems === 0 || mutation.isPending}
+            disabled={!activeUser || totalItems === 0 || mutation.isPending}
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
             <IconCheckCircle className="h-4 w-4" />

@@ -1,0 +1,32 @@
+## 1. Acceso discriminado y aviso reutilizable
+
+- [x] 1.1 Agregar `useAccountAccess()` en `frontend/src/lib/auth-provider.tsx` con un resultado discriminado (`activo` / `inactivo` / `sin-sesion`) y hacer que `useRequireActiveUser()` delegue en él conservando su firma y su significado actual; verificar con `pnpm --filter frontend exec tsc --noEmit` que compile y con una revisión de diff que el contrato público no cambió.
+- [x] 1.2 Crear `frontend/src/components/aviso-cuenta-pendiente.tsx` (tarjeta con `IconAlertTriangle`, `StatusBadge` con el `estado` real del usuario, el texto según el estado y `Link` a `/profile`) y exportarlo en `frontend/src/components/index.ts`; verificar que las búsquedas de los textos exactos "Tu cuenta está pendiente de aprobación. Mientras tanto podés ver tu perfil, pero todavía no podés reservar." y "Tu cuenta no está activa. Mientras tanto podés ver tu perfil, pero todavía no podés reservar. Comunicate con el club." devuelvan una coincidencia cada una, que el badge no esté hardcodeado a `PENDIENTE` y que `pnpm --filter frontend run lint` pase.
+
+## 2. Pantallas de reservas con aviso en vez de `null`
+
+- [x] 2.1 En `frontend/src/app/my-reservations/page.tsx`, reemplazar la guardia `activeUser === null → return null` por `acceso.kind === "sin-sesion" → return null` y `acceso.kind === "inactivo" → <AvisoCuentaPendiente />` dentro de `AuthenticatedLayout`; verificar con `pnpm --filter frontend exec tsc --noEmit` y con el test e2e de la tarea 4.2.
+- [x] 2.2 En `frontend/src/app/reservations/new/page.tsx`, aplicar la misma guardia antes del stepper para que no se rendericen pasos ni el botón "Confirmar reserva"; verificar con `pnpm --filter frontend exec tsc --noEmit` y con el test e2e de la tarea 4.2.
+- [x] 2.3 En `frontend/src/app/reservations/[id]/rent-equipment/page.tsx`, aplicar la misma guardia manteniendo `useRequireActiveUser()` para habilitar acciones solo a usuarios activos; verificar con `pnpm --filter frontend exec tsc --noEmit` y con el test e2e de la tarea 4.2.
+
+## 3. Redirección del login según estado
+
+- [x] 3.1 En `frontend/src/app/login/login-client.tsx`, después de `login(token, user)` en `onSuccess`, agregar la rama temprana que hace `router.push("/")` y retorna cuando `response.usuario.estado !== "ACTIVO"`, sin leer `redirect` ni `getDashboardPath`; dejar intacto el flujo de `ACTIVO`. Verificar con `pnpm --filter frontend exec tsc --noEmit` y con los tests e2e de la tarea 4.3.
+
+## 4. Pruebas e2e del frontend (Playwright)
+
+- [x] 4.1 Crear `frontend/e2e/fixtures/sesion.ts` con helpers que fijen la cookie `token` (además del `localStorage`) con un token de payload decodificable (`rol: SOCIO`, `sub` UUID) y guarden en `localStorage.user` el `estado` indicado, e intercepten `**/api/v1/**` respondiendo datos vacíos; verificar con `frontend/src/proxy.ts:41` y `frontend/src/lib/auth.ts:52-72` que ambas vías quedan cubiertas, y que `pnpm --filter frontend exec playwright test --list` descubra los archivos nuevos sin errores de import.
+- [x] 4.2 Crear `frontend/e2e/tests/cuenta-pendiente.test.ts` con los tests que abren las tres pantallas con sesión `PENDIENTE` y asertan el texto exacto de `PENDIENTE`, el badge `PENDIENTE`, el enlace a `/profile`, la ausencia de "Nueva reserva"/pasos/equipamiento y de una página vacía; agregar el test con sesión `INACTIVO` en `/reservations/<uuid>/rent-equipment` que aserta el texto alternativo, el badge `INACTIVO` y la ausencia de acciones (RF-FE-01); verificar con `pnpm --filter frontend run test:e2e -- cuenta-pendiente` que pasen con el servidor levantado.
+- [x] 4.3 Crear `frontend/e2e/tests/login-estado-cuenta.test.ts` con los tests de `PENDIENTE` desde `/login?redirect=%2Fmy-reservations` → `/`, `ACTIVO` con `redirect` → la ruta indicada y `ACTIVO` sin `redirect` → `/my-reservations` (RF-FE-02), stubeando `POST /auth/login`; verificar con `pnpm --filter frontend run test:e2e -- login-estado-cuenta` que pasen.
+- [x] 4.4 Ampliar los tests anteriores con el escenario de usuario `ACTIVO` que ve Mis reservas normalmente, el de visitante sin sesión que sigue yendo a `/login?redirect=%2Fmy-reservations` sin ver el aviso, el de visitante sin sesión en `/reservations/<uuid>/rent-equipment` redirigido a `/login` con el `redirect` codificado, y el de rutas públicas `/`, `/disciplines` y `/availability` que cargan sin redirección ni aviso (RF-FE-01/RF-FE-03); verificar con `pnpm --filter frontend run test:e2e -- cuenta-pendiente login-estado-cuenta` que todos pasen.
+
+## 5. Regresión backend (sin cambiar comportamiento)
+
+- [x] 5.1 Crear `backend/src/auth/active-user.guard.spec.ts` con `PrismaService` mockeado y asertar `ForbiddenException` para `PENDIENTE`, `INACTIVO` y `SUSPENDIDO`, y `true` para `ACTIVO`; verificar con `pnpm --filter club-deportivo-backend run test -- active-user.guard` que pase.
+- [x] 5.2 Ampliar `backend/src/reservas/reservas.controller.spec.ts` para asertar que `crearReserva` y `crearAlquiler` declaran `ActiveUserGuard` en su metadata (además de `AuthGuard('jwt')`); verificar con `pnpm --filter club-deportivo-backend run test -- reservas.controller` que pase.
+
+## 6. Calidad y cierre
+
+- [x] 6.1 Ejecutar `pnpm --filter frontend run lint`, `pnpm --filter frontend exec tsc --noEmit`, `pnpm --filter club-deportivo-backend run lint`, `pnpm --filter club-deportivo-backend run typecheck`, `pnpm --filter club-deportivo-backend run test` y `pnpm exec openspec validate --all --strict`; verificar que los seis comandos terminen con código 0.
+- [x] 6.2 Ejecutar **a mano** (el CI actual no corre Playwright) la suite completa con la app levantada (`E2E_BASE_URL=<url> pnpm --filter frontend run test:e2e`); verificar que los tests nuevos pasen, que los skips preexistentes sigan documentados y guardar el resultado (comando, fecha y salida) en la descripción del PR. Resultado: 13 passed, 4 skipped, 2026-11-23, comando: pnpm --filter frontend run test:e2e -- --reporter=list
+- [ ] 6.3 Abrir PR desde la rama `feature/socio-pendiente-vista-clara`, esperar CI verde y aprobación de un integrante del equipo, hacer squash merge y archivar el change con `pnpm exec openspec archive socio-pendiente-vista-clara --yes`; verificar que el PR quedó mergeado y que `pnpm exec openspec status --change socio-pendiente-vista-clara --json` indique el change completado.
