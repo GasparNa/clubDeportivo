@@ -7,8 +7,9 @@ export class CreateReservaDto {
   @IsDateString()
   fecha!: string; // YYYY-MM-DD
 
+  @IsOptional()
   @IsUUID()
-  id_persona!: string;
+  id_persona?: string;
 
   @IsOptional()
   @IsEnum(['AUTOGESTIONADA', 'MANUAL_GERENCIA'])

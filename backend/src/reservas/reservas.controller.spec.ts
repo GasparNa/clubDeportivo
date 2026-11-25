@@ -123,4 +123,28 @@ describe('ReservasController - alquileres', () => {
       expect(result).toEqual({ id_detalle: UUID_VALIDO });
     });
   });
+
+  describe('POST reservations', () => {
+    it("debe declarar AuthGuard('jwt') y ActiveUserGuard", () => {
+      const guards = guardsDe('crearReserva');
+
+      expect(guards.some(esAuthGuardJwt)).toBe(true);
+      expect(guards).toContain(ActiveUserGuard);
+    });
+
+    it('debe llamar al servicio con (dto, req.user) exactamente', async () => {
+      const dto = {
+        id_franja: 'uuid-franja-1',
+        fecha: '2026-10-07',
+        id_persona: 'uuid-persona-1',
+      } as any;
+      const req = { user: { id_usuario: 'uuid-persona-1', rol: 'SOCIO' } };
+      mockService.crearReserva = jest.fn().mockResolvedValue({ id_reserva: 'r1' });
+
+      const result = await controller.crearReserva(dto, req as any);
+
+      expect(mockService.crearReserva).toHaveBeenCalledWith(dto, req.user);
+      expect(result).toEqual({ id_reserva: 'r1' });
+    });
+  });
 });
