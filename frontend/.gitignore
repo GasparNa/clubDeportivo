@@ -46,3 +46,7 @@ next-env.d.ts
 # archivos de agentes generados por next dev (Next 16)
 /AGENTS.md
 /CLAUDE.md
+
+# Playwright
+playwright-report/
+test-results/

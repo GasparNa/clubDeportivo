@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AuthenticatedLayout, ReservationCard, StatusBadge } from "@/components";
-import { useAuth, useRequireActiveUser } from "@/lib/auth-provider";
+import { AuthenticatedLayout, AvisoCuentaPendiente, ReservationCard, StatusBadge } from "@/components";
+import { useAccountAccess, useAuth } from "@/lib/auth-provider";
 import { api } from "@/lib/http-client";
 import { normalizeReserva } from "@/lib/api-mappers";
 import { canSocioCancel, countActiveReservations, MAX_ACTIVE_RESERVATIONS } from "@/lib/reservation-rules";
@@ -23,7 +23,7 @@ const FILTER_OPTIONS: { value: FilterStatus; label: string }[] = [
 
 function MyReservationsContent() {
   const { user } = useAuth();
-  const activeUser = useRequireActiveUser();
+  const acceso = useAccountAccess();
 
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterStatus>("ALL");
@@ -66,8 +66,16 @@ function MyReservationsContent() {
   const activeCount = countActiveReservations(reservas ?? []);
   const canCreate = activeCount < MAX_ACTIVE_RESERVATIONS;
 
-  if (activeUser === null) {
+  if (acceso.kind === "sin-sesion") {
     return null;
+  }
+
+  if (acceso.kind === "inactivo") {
+    return (
+      <AuthenticatedLayout>
+        <AvisoCuentaPendiente estado={acceso.user.estado} />
+      </AuthenticatedLayout>
+    );
   }
 
   return (

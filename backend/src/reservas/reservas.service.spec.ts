@@ -54,6 +54,9 @@ describe('ReservasService', () => {
       id_persona: 'uuid-persona-1',
     };
 
+    const actorSocio = { id_usuario: 'uuid-persona-1', rol: 'SOCIO' };
+    const actorGerente = { id_usuario: 'uuid-gerente-1', rol: 'GERENTE' };
+
     const mockFranja = {
       id_franja: 'uuid-franja-1',
       id_cancha: 'uuid-cancha-1',
@@ -68,38 +71,181 @@ describe('ReservasService', () => {
       },
     };
 
-    it('debe crear una reserva correctamente', async () => {
+    const mockReservaCreada = {
+      id_reserva: 'uuid-reserva-1',
+      ...createDto,
+      estado: 'CONFIRMADA',
+      origen: 'AUTOGESTIONADA',
+    };
+
+    function mockFlujoOk(usuario: any = { id_usuario: 'uuid-persona-1', estado: 'ACTIVO' }) {
       mockPrisma.franjaHoraria.findUnique.mockResolvedValue(mockFranja);
       mockPrisma.reserva.findFirst.mockResolvedValue(null);
-      mockPrisma.usuario = {
-        findUnique: jest.fn().mockResolvedValue({ id_usuario: 'uuid-persona-1', estado: 'ACTIVO' }),
-      };
+      mockPrisma.usuario.findUnique.mockResolvedValue(usuario);
       mockPrisma.reserva.count.mockResolvedValue(0);
-      mockPrisma.reserva.create.mockResolvedValue({
-        id_reserva: 'uuid-reserva-1',
-        ...createDto,
-        estado: 'CONFIRMADA',
-      });
+      mockPrisma.reserva.create.mockResolvedValue(mockReservaCreada);
+    }
 
-      const result = await service.crearReserva(createDto);
+    it('debe crear una reserva correctamente', async () => {
+      mockFlujoOk();
+      const result = await service.crearReserva(createDto, actorSocio);
 
       expect(result).toHaveProperty('id_reserva');
       expect(result).toHaveProperty('estado', 'CONFIRMADA');
     });
 
+    it('3.1 SOCIO ACTIVO crea reserva con su propio id_persona → origen AUTOGESTIONADA', async () => {
+      mockFlujoOk();
+      await service.crearReserva(createDto, actorSocio);
+
+      expect(mockPrisma.reserva.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id_persona: 'uuid-persona-1',
+            origen: 'AUTOGESTIONADA',
+          }),
+        }),
+      );
+    });
+
+    it('3.2 SOCIO ACTIVO crea reserva sin id_persona → usa actor.id_usuario y origen AUTOGESTIONADA', async () => {
+      mockFlujoOk();
+      const dtoSinPersona = { id_franja: createDto.id_franja, fecha: createDto.fecha };
+      await service.crearReserva(dtoSinPersona as any, actorSocio);
+
+      expect(mockPrisma.reserva.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id_persona: 'uuid-persona-1',
+            origen: 'AUTOGESTIONADA',
+          }),
+        }),
+      );
+    });
+
+    it('3.3 SOCIO envía id_persona de otro usuario → 403 y sin consultas a Prisma', async () => {
+      await expect(
+        service.crearReserva({ ...createDto, id_persona: 'uuid-otro' }, actorSocio),
+      ).rejects.toThrow('No puedes crear reservas a nombre de otro usuario');
+
+      expect(mockPrisma.franjaHoraria.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.usuario.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.count).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.create).not.toHaveBeenCalled();
+    });
+
+    it('3.4 SOCIO envía origen MANUAL_GERENCIA → 403 y sin consultas a Prisma', async () => {
+      await expect(
+        service.crearReserva({ ...createDto, origen: 'MANUAL_GERENCIA' } as any, actorSocio),
+      ).rejects.toThrow('Solo gerencia puede crear reservas manuales');
+
+      expect(mockPrisma.franjaHoraria.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.usuario.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.count).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.create).not.toHaveBeenCalled();
+    });
+
+    it('3.5 GERENTE crea reserva MANUAL_GERENCIA para un SOCIO ACTIVO', async () => {
+      mockFlujoOk({ id_usuario: 'uuid-persona-1', estado: 'ACTIVO' });
+      mockPrisma.reserva.create.mockResolvedValue({
+        ...mockReservaCreada,
+        origen: 'MANUAL_GERENCIA',
+      });
+
+      await service.crearReserva(
+        { ...createDto, origen: 'MANUAL_GERENCIA' } as any,
+        actorGerente,
+      );
+
+      expect(mockPrisma.reserva.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id_persona: 'uuid-persona-1',
+            origen: 'MANUAL_GERENCIA',
+          }),
+        }),
+      );
+    });
+
+    it('3.6 GERENTE usa id_persona de usuario no ACTIVO → 403 error vigente', async () => {
+      mockPrisma.franjaHoraria.findUnique.mockResolvedValue(mockFranja);
+      mockPrisma.reserva.findFirst.mockResolvedValue(null);
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        id_usuario: 'uuid-persona-1',
+        estado: 'INACTIVO',
+      });
+
+      await expect(service.crearReserva(createDto, actorGerente)).rejects.toThrow(
+        'El usuario debe estar ACTIVO para reservar',
+      );
+    });
+
+    it('3.7 Fail-closed: sin actor o sin id_usuario → 403 antes de cualquier consulta', async () => {
+      await expect(service.crearReserva(createDto, undefined)).rejects.toThrow(
+        ForbiddenException,
+      );
+      await expect(service.crearReserva(createDto, {} as any)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(mockPrisma.franjaHoraria.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.usuario.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.count).not.toHaveBeenCalled();
+      expect(mockPrisma.reserva.create).not.toHaveBeenCalled();
+    });
+
+    it('3.8 Reglas vigentes con actor SOCIO: límite de 2 reservas y franja ya reservada', async () => {
+      mockPrisma.franjaHoraria.findUnique.mockResolvedValue(mockFranja);
+      mockPrisma.reserva.findFirst.mockResolvedValue(null);
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        id_usuario: 'uuid-persona-1',
+        estado: 'ACTIVO',
+      });
+      mockPrisma.reserva.count.mockResolvedValue(2);
+
+      await expect(service.crearReserva(createDto, actorSocio)).rejects.toThrow(
+        'El usuario ya posee el máximo de 2 reservas confirmadas',
+      );
+
+      jest.clearAllMocks();
+      mockPrisma.franjaHoraria.findUnique.mockResolvedValue(mockFranja);
+      mockPrisma.reserva.findFirst.mockResolvedValue({
+        id_reserva: 'uuid-conflict',
+        estado: 'CONFIRMADA',
+      });
+
+      await expect(service.crearReserva(createDto, actorSocio)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('3.9 GERENTE con id_persona sin cuenta lanza 403 "Solo usuarios registrados y activos pueden reservar"', async () => {
+      mockPrisma.franjaHoraria.findUnique.mockResolvedValue(mockFranja);
+      mockPrisma.reserva.findFirst.mockResolvedValue(null);
+      mockPrisma.usuario.findUnique.mockResolvedValue(null);
+
+      await expect(service.crearReserva(createDto, actorGerente)).rejects.toThrow(
+        'Solo usuarios registrados y activos pueden reservar',
+      );
+    });
+
+    it('3.10 actor con rol desconocido o ausente se trata como SOCIO (rama restrictiva)', async () => {
+      await expect(
+        service.crearReserva({ ...createDto, id_persona: 'uuid-otro' }, { id_usuario: 'uuid-persona-1' } as any),
+      ).rejects.toThrow('No puedes crear reservas a nombre de otro usuario');
+
+      expect(mockPrisma.franjaHoraria.findUnique).not.toHaveBeenCalled();
+    });
+
     it('debe lanzar NotFoundException si la franja no existe', async () => {
       mockPrisma.franjaHoraria.findUnique.mockResolvedValue(null);
 
-      await expect(service.crearReserva(createDto)).rejects.toThrow(NotFoundException);
-    });
-
-    it('debe lanzar ConflictException si hay solapamiento de horario', async () => {
-      mockPrisma.franjaHoraria.findUnique.mockResolvedValue(mockFranja);
-      mockPrisma.reserva.findFirst.mockResolvedValue(
-        { id_reserva: 'uuid-conflict', estado: 'CONFIRMADA' },
+      await expect(service.crearReserva(createDto, actorSocio)).rejects.toThrow(
+        NotFoundException,
       );
-
-      await expect(service.crearReserva(createDto)).rejects.toThrow(ConflictException);
     });
 
     it('debe lanzar BadRequestException si la cancha está en mantenimiento', async () => {
@@ -108,9 +254,12 @@ describe('ReservasService', () => {
         cancha: { ...mockFranja.cancha, estado: 'MANTENIMIENTO' },
       });
 
-      await expect(service.crearReserva(createDto)).rejects.toThrow(BadRequestException);
+      await expect(service.crearReserva(createDto, actorSocio)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
+
 
   describe('crearAlquiler', () => {
     const alquilerDto = {
