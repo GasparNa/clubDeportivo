@@ -128,7 +128,7 @@ jobs:
           echo "✅ Secretos de despliegue configurados."
 
       - name: Verificar servidor de destino
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
@@ -163,7 +163,7 @@ jobs:
           target: "/opt/club-deportivo"
 
       - name: Ejecutar despliegue remoto en AWS
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           BACKEND_IMAGE: ${{ steps.images.outputs.backend }}
           FRONTEND_IMAGE: ${{ steps.images.outputs.frontend }}
