@@ -12,6 +12,8 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { configuracionThrottle } from '../auth/throttle.config';
 import { UsuariosService } from './usuarios.service';
 import {
   RegisterPersonaDto,
@@ -28,11 +30,15 @@ export class UsuariosController {
 
   // ─── Auth ────────────────────────────────────────────────────────────
 
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: configuracionThrottle() })
   @Post('auth/register')
   async register(@Body() dto: RegisterPersonaDto) {
     return this.usuariosService.register(dto);
   }
 
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: configuracionThrottle() })
   @Post('auth/login')
   async login(@Body() dto: LoginDto) {
     return this.usuariosService.login(dto);

@@ -33,7 +33,7 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-club_deportivo}:${POSTGRES_PASSWORD:-club_deportivo_dev}@db:5432/${POSTGRES_DB:-club_deportivo}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_SECRET: ${JWT_SECRET:-CAMBIAR_POR_SECRETO_JWT_DE_MINIMO_32_CHARS}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-24h}
       DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-5}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}

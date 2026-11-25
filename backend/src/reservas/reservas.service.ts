@@ -6,6 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Actor, esGerencia } from '../auth/actor';
 import {
   CreateReservaDto,
   UpdateReservaEstadoDto,
@@ -27,16 +28,33 @@ export class ReservasService {
   // ════════════════════════════════════════════════════════════════════
 
   /**
-   * Listar reservas con filtros opcionales.
+   * Listar reservas con filtros opcionales y titularidad del actor.
    */
-  async listarReservas(filtros: {
-    id_persona?: string;
-    fecha?: string;
-    estado?: string;
-  }) {
+  async listarReservas(
+    filtros: {
+      id_persona?: string;
+      fecha?: string;
+      estado?: string;
+    },
+    actor: Actor,
+  ) {
+    if (!actor?.id_persona || !actor?.rol) {
+      throw new ForbiddenException('Se requiere autenticación');
+    }
+
     const where: any = {};
 
-    if (filtros.id_persona) where.id_persona = filtros.id_persona;
+    if (esGerencia(actor)) {
+      if (filtros.id_persona) where.id_persona = filtros.id_persona;
+    } else {
+      if (filtros.id_persona && filtros.id_persona !== actor.id_persona) {
+        throw new ForbiddenException(
+          'No puedes consultar reservas de otro usuario',
+        );
+      }
+      where.id_persona = actor.id_persona;
+    }
+
     if (filtros.fecha) where.fecha = new Date(filtros.fecha);
     if (filtros.estado) where.estado = filtros.estado;
 
@@ -60,9 +78,29 @@ export class ReservasService {
   }
 
   /**
-   * Obtener una reserva por ID.
+   * Obtener una reserva por ID con titularidad del actor.
    */
-  async getReserva(id: string) {
+  async getReserva(id: string, actor: Actor) {
+    if (!actor?.id_persona || !actor?.rol) {
+      throw new ForbiddenException('Se requiere autenticación');
+    }
+
+    const reserva = await this.buscarReserva(id);
+
+    if (
+      !esGerencia(actor) &&
+      reserva.id_persona !== actor.id_persona
+    ) {
+      throw new NotFoundException('Reserva no encontrada');
+    }
+
+    return reserva;
+  }
+
+  /**
+   * Consulta interna sin filtro de titularidad para llamadores autorizados.
+   */
+  private async buscarReserva(id: string) {
     const reserva = await this.prisma.reserva.findUnique({
       where: { id_reserva: id },
       include: {
@@ -106,7 +144,7 @@ export class ReservasService {
     let id_persona: string;
     let origen: string;
 
-    if (this.esGerencia(actor)) {
+    if (esGerencia(actor)) {
       if (!dto.id_persona) {
         throw new BadRequestException('Gerencia debe indicar el titular de la reserva');
       }
@@ -213,7 +251,7 @@ export class ReservasService {
    * Actualizar estado de una reserva (check-in, completar, cancelar).
    */
   async actualizarEstadoReserva(id: string, dto: UpdateReservaEstadoDto) {
-    const reserva = await this.getReserva(id);
+    const reserva = await this.buscarReserva(id);
 
     // Validar transiciones de estado
     const transicionesValidas: Record<string, string[]> = {
@@ -256,7 +294,7 @@ export class ReservasService {
    * Valida titularidad, estado y anticipación de 24 horas.
    */
   async cancelarReservaAutogestionada(id: string, userId?: string) {
-    const reserva = await this.getReserva(id);
+    const reserva = await this.buscarReserva(id);
 
     // Verificar titularidad: solo el Socio dueño de la reserva
     // (en el modelo, Usuario.id_usuario == Persona.id_persona de su cuenta)
@@ -355,7 +393,7 @@ export class ReservasService {
       throw new NotFoundException('Detalle de alquiler no encontrado');
     }
 
-    if (!this.esGerencia(actor) && detalle.reserva?.id_persona !== actor.id_usuario) {
+    if (!esGerencia(actor) && detalle.reserva?.id_persona !== actor.id_usuario) {
       throw new ForbiddenException(
         'No puedes consultar alquileres de otro usuario',
       );
@@ -377,9 +415,9 @@ export class ReservasService {
     }
 
     const where: any = {};
-    const esGerencia = this.esGerencia(actor);
+    const gerencia = esGerencia(actor);
 
-    if (!esGerencia) {
+    if (!gerencia) {
       if (id_reserva) {
         const reserva = await this.prisma.reserva.findUnique({
           where: { id_reserva },
@@ -413,10 +451,6 @@ export class ReservasService {
       },
       orderBy: { creado_en: 'desc' },
     });
-  }
-
-  private esGerencia(actor?: ActorReserva): boolean {
-    return actor?.rol === 'ADMINISTRADOR' || actor?.rol === 'GERENTE';
   }
 
   private mapAlquilerDetalle(detalle: any) {

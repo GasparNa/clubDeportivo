@@ -12,6 +12,7 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Actor } from '../auth/actor';
 import { ReservasService } from './reservas.service';
 import {
   CreateReservaDto,
@@ -35,21 +36,35 @@ export class ReservasController {
   @UseGuards(AuthGuard('jwt'))
   @Get('reservations')
   async listarReservas(
+    @Request() req,
     @Query('person_id') personId?: string,
     @Query('date') fecha?: string,
     @Query('status') estado?: string,
   ) {
-    return this.reservasService.listarReservas({
-      id_persona: personId,
-      fecha,
-      estado,
-    });
+    const actor: Actor = {
+      id_persona: req.user?.id_usuario,
+      rol: req.user?.rol,
+    };
+
+    return this.reservasService.listarReservas(
+      {
+        id_persona: personId,
+        fecha,
+        estado,
+      },
+      actor,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('reservations/:id')
-  async getReserva(@Param('id') id: string) {
-    return this.reservasService.getReserva(id);
+  async getReserva(@Param('id') id: string, @Request() req) {
+    const actor: Actor = {
+      id_persona: req.user?.id_usuario,
+      rol: req.user?.rol,
+    };
+
+    return this.reservasService.getReserva(id, actor);
   }
 
   @UseGuards(AuthGuard('jwt'), ActiveUserGuard)

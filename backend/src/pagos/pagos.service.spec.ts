@@ -1,5 +1,5 @@
 import { PagosService } from './pagos.service';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 describe('PagosService', () => {
   let service: PagosService;
@@ -50,6 +50,14 @@ describe('PagosService', () => {
 
       expect(result).toHaveProperty('id_registro');
       expect(result).toHaveProperty('estado', 'COMPLETADO');
+      expect(mockPrisma.registroAuditoria.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id_usuario: 'uuid-persona-1',
+            evento: 'PAGO_REGISTRADO',
+          }),
+        }),
+      );
     });
 
     it('debe lanzar NotFoundException si la reserva no existe', async () => {
@@ -274,6 +282,148 @@ describe('PagosService', () => {
           mensaje: 'Mensaje',
         }),
       ).rejects.toThrow('Usuario no encontrado');
+    });
+  });
+
+  describe('titularidad en listarPagos', () => {
+    const socioA = { id_persona: 'uuid-socio-a', rol: 'SOCIO' };
+    const gerente = { id_persona: 'uuid-gerente', rol: 'GERENTE' };
+    const administrador = {
+      id_persona: 'uuid-admin',
+      rol: 'ADMINISTRADOR',
+    };
+
+    it('un SOCIO ve solo los pagos cuyo id_usuario es el suyo', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([
+        { id_registro: 'uuid-pago-a', id_usuario: 'uuid-socio-a' },
+      ]);
+
+      const resultado = await service.listarPagos({}, socioA);
+
+      expect(resultado).toHaveLength(1);
+      expect(mockPrisma.registroAuditoria.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id_usuario: 'uuid-socio-a' }),
+        }),
+      );
+    });
+
+    it('GERENTE y ADMINISTRADOR ven los pagos de todos los socios', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await service.listarPagos({}, gerente);
+      await service.listarPagos({}, administrador);
+
+      expect(mockPrisma.registroAuditoria.findMany).toHaveBeenCalledTimes(2);
+      const where = mockPrisma.registroAuditoria.findMany.mock.calls[0][0].where;
+      expect(where).not.toHaveProperty('id_usuario');
+    });
+
+    it('un SOCIO aplica date_from y date_to sobre su conjunto autorizado', async () => {
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await service.listarPagos(
+        { fecha_desde: '2026-01-01', fecha_hasta: '2026-01-31' },
+        socioA,
+      );
+
+      expect(mockPrisma.registroAuditoria.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            evento: {
+              in: ['PAGO_REGISTRADO', 'PAGO_REEMBOLSADO', 'PAGO_FALLIDO'],
+            },
+            id_usuario: 'uuid-socio-a',
+            fecha: {
+              gte: new Date('2026-01-01'),
+              lte: new Date('2026-01-31'),
+            },
+          },
+        }),
+      );
+    });
+
+    it('sin actor autenticado falla cerrado antes de consultar la base', async () => {
+      await expect(
+        service.listarPagos({}, undefined as any),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.listarPagos({}, { rol: 'SOCIO' } as any),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockPrisma.registroAuditoria.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('titularidad en getPagosReserva', () => {
+    const socioA = { id_persona: 'uuid-socio-a', rol: 'SOCIO' };
+    const gerente = { id_persona: 'uuid-gerente', rol: 'GERENTE' };
+    const administrador = {
+      id_persona: 'uuid-admin',
+      rol: 'ADMINISTRADOR',
+    };
+
+    it('un SOCIO consulta los pagos de su reserva', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue({
+        id_reserva: 'uuid-reserva-a',
+        id_persona: 'uuid-socio-a',
+        monto_total: 1500,
+      });
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([
+        { id_registro: 'uuid-pago-a', evento: 'PAGO_REGISTRADO' },
+      ]);
+
+      const resultado = await service.getPagosReserva('uuid-reserva-a', socioA);
+
+      expect(resultado).toMatchObject({ id_reserva: 'uuid-reserva-a' });
+      expect(resultado.pagos).toHaveLength(1);
+    });
+
+    it('un SOCIO recibe 404 sin importes para una reserva ajena', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue({
+        id_reserva: 'uuid-reserva-b',
+        id_persona: 'uuid-socio-b',
+        monto_total: 9000,
+      });
+
+      await expect(
+        service.getPagosReserva('uuid-reserva-b', socioA),
+      ).rejects.toThrow('Reserva no encontrada');
+
+      expect(mockPrisma.registroAuditoria.findMany).not.toHaveBeenCalled();
+    });
+
+    it('GERENTE y ADMINISTRADOR consultan los pagos de una reserva ajena', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue({
+        id_reserva: 'uuid-reserva-b',
+        id_persona: 'uuid-socio-b',
+        monto_total: 9000,
+      });
+      mockPrisma.registroAuditoria.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.getPagosReserva('uuid-reserva-b', gerente),
+      ).resolves.toMatchObject({ id_reserva: 'uuid-reserva-b' });
+      await expect(
+        service.getPagosReserva('uuid-reserva-b', administrador),
+      ).resolves.toMatchObject({ id_reserva: 'uuid-reserva-b' });
+      expect(mockPrisma.registroAuditoria.findMany).toHaveBeenCalledTimes(2);
+    });
+
+    it('una reserva inexistente responde 404', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getPagosReserva('uuid-inexistente', socioA),
+      ).rejects.toThrow('Reserva no encontrada');
+    });
+
+    it('sin actor autenticado falla cerrado antes de consultar la base', async () => {
+      await expect(
+        service.getPagosReserva('uuid-reserva-a', undefined as any),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockPrisma.reserva.findUnique).not.toHaveBeenCalled();
     });
   });
 });

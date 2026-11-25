@@ -676,4 +676,143 @@ describe('ReservasService', () => {
       ).not.toHaveBeenCalled();
     });
   });
+
+  describe('titularidad en listarReservas', () => {
+    const socioA = { id_persona: 'uuid-socio-a', rol: 'SOCIO' };
+    const gerente = { id_persona: 'uuid-gerente', rol: 'GERENTE' };
+    const administrador = {
+      id_persona: 'uuid-admin',
+      rol: 'ADMINISTRADOR',
+    };
+
+    it('un SOCIO sin person_id ve solo sus reservas', async () => {
+      mockPrisma.reserva.findMany.mockResolvedValue([
+        { id_reserva: 'uuid-reserva-a' },
+      ]);
+
+      const resultado = await service.listarReservas({}, socioA);
+
+      expect(resultado).toHaveLength(1);
+      expect(mockPrisma.reserva.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id_persona: 'uuid-socio-a' } }),
+      );
+    });
+
+    it('un SOCIO con person_id ajeno recibe 403 y no consulta la base', async () => {
+      await expect(
+        service.listarReservas({ id_persona: 'uuid-socio-b' }, socioA),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockPrisma.reserva.findMany).not.toHaveBeenCalled();
+    });
+
+    it('GERENTE y ADMINISTRADOR listan todas las reservas con status', async () => {
+      mockPrisma.reserva.findMany.mockResolvedValue([]);
+
+      await service.listarReservas({ estado: 'CONFIRMADA' }, gerente);
+      await service.listarReservas({ estado: 'CONFIRMADA' }, administrador);
+
+      expect(mockPrisma.reserva.findMany).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.reserva.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { estado: 'CONFIRMADA' },
+        }),
+      );
+    });
+
+    it('un SOCIO combina su person_id con date y status', async () => {
+      mockPrisma.reserva.findMany.mockResolvedValue([]);
+
+      await service.listarReservas(
+        {
+          id_persona: 'uuid-socio-a',
+          fecha: '2026-03-01',
+          estado: 'CANCELADA',
+        },
+        socioA,
+      );
+
+      expect(mockPrisma.reserva.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id_persona: 'uuid-socio-a',
+            fecha: new Date('2026-03-01'),
+            estado: 'CANCELADA',
+          },
+        }),
+      );
+    });
+
+    it('sin actor autenticado falla cerrado antes de consultar la base', async () => {
+      await expect(
+        service.listarReservas({}, undefined as any),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.listarReservas({}, { rol: 'SOCIO' } as any),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockPrisma.reserva.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('titularidad en getReserva', () => {
+    const socioA = { id_persona: 'uuid-socio-a', rol: 'SOCIO' };
+    const gerente = { id_persona: 'uuid-gerente', rol: 'GERENTE' };
+    const reservaDeA = {
+      id_reserva: 'uuid-reserva-a',
+      id_persona: 'uuid-socio-a',
+    };
+
+    it('un SOCIO consulta su propia reserva', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue(reservaDeA);
+
+      await expect(service.getReserva('uuid-reserva-a', socioA)).resolves.toEqual(
+        reservaDeA,
+      );
+    });
+
+    it('un SOCIO recibe 404 Reserva no encontrada para una reserva ajena', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue({
+        id_reserva: 'uuid-reserva-b',
+        id_persona: 'uuid-socio-b',
+      });
+
+      await expect(
+        service.getReserva('uuid-reserva-b', socioA),
+      ).rejects.toThrow('Reserva no encontrada');
+    });
+
+    it('GERENTE y ADMINISTRADOR consultan una reserva ajena', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue({
+        id_reserva: 'uuid-reserva-b',
+        id_persona: 'uuid-socio-b',
+      });
+
+      await expect(
+        service.getReserva('uuid-reserva-b', gerente),
+      ).resolves.toMatchObject({ id_reserva: 'uuid-reserva-b' });
+      await expect(
+        service.getReserva('uuid-reserva-b', {
+          id_persona: 'uuid-admin',
+          rol: 'ADMINISTRADOR',
+        }),
+      ).resolves.toMatchObject({ id_reserva: 'uuid-reserva-b' });
+    });
+
+    it('una reserva inexistente responde 404', async () => {
+      mockPrisma.reserva.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getReserva('uuid-reserva-inexistente', socioA),
+      ).rejects.toThrow('Reserva no encontrada');
+    });
+
+    it('sin actor autenticado falla cerrado antes de consultar la base', async () => {
+      await expect(
+        service.getReserva('uuid-reserva-a', undefined as any),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(mockPrisma.reserva.findUnique).not.toHaveBeenCalled();
+    });
+  });
 });

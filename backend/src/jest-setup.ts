@@ -1,6 +1,9 @@
 // Jest setup: mock de módulos ESM de NestJS para compatibilidad con Jest 29
 import 'reflect-metadata';
 
+process.env.JWT_SECRET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV';
+process.env.THROTTLE_LIMIT = '10000';
+
 jest.mock('@nestjs/jwt', () => ({
   JwtService: jest.fn().mockImplementation(() => ({
     sign: jest.fn().mockReturnValue('mock-jwt-token'),

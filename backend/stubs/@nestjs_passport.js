@@ -30,4 +30,8 @@ const PassportModule = {
   },
 };
 
-module.exports = { AuthGuard, PassportModule };
+function PassportStrategy(Strategy, _name) {
+  return class extends Strategy {};
+}
+
+module.exports = { AuthGuard, PassportModule, PassportStrategy };

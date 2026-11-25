@@ -44,6 +44,8 @@ describe('ReservasController - alquileres', () => {
 
   beforeEach(() => {
     mockService = {
+      listarReservas: jest.fn(),
+      getReserva: jest.fn(),
       listarAlquileres: jest.fn(),
       getAlquiler: jest.fn(),
       crearReserva: jest.fn(),
@@ -163,6 +165,57 @@ describe('ReservasController - alquileres', () => {
 
       expect(mockService.crearReserva).toHaveBeenCalledWith(dto, req.user);
       expect(result).toEqual({ id_reserva: 'r1' });
+    });
+  });
+});
+
+describe('ReservasController - titularidad', () => {
+  let controller: ReservasController;
+  let mockService: any;
+
+  beforeEach(() => {
+    mockService = {
+      listarReservas: jest.fn().mockResolvedValue([]),
+      getReserva: jest.fn().mockResolvedValue({ id_reserva: UUID_VALIDO }),
+    };
+    controller = new ReservasController(mockService);
+  });
+
+  it("GET reservations declara AuthGuard('jwt')", () => {
+    expect(guardsDe('listarReservas').some(esAuthGuardJwt)).toBe(true);
+  });
+
+  it('GET reservations pasa el actor con id_persona del usuario autenticado', async () => {
+    const req = {
+      user: { id_usuario: 'uuid-socio-1', rol: 'SOCIO' },
+    };
+
+    await controller.listarReservas(req, 'uuid-otro', '2026-03-01', 'CONFIRMADA');
+
+    expect(mockService.listarReservas).toHaveBeenCalledWith(
+      {
+        id_persona: 'uuid-otro',
+        fecha: '2026-03-01',
+        estado: 'CONFIRMADA',
+      },
+      { id_persona: 'uuid-socio-1', rol: 'SOCIO' },
+    );
+  });
+
+  it("GET reservations/:id declara AuthGuard('jwt')", () => {
+    expect(guardsDe('getReserva').some(esAuthGuardJwt)).toBe(true);
+  });
+
+  it('GET reservations/:id pasa el actor con id_persona del usuario autenticado', async () => {
+    const req = {
+      user: { id_usuario: 'uuid-gerente', rol: 'GERENTE' },
+    };
+
+    await controller.getReserva(UUID_VALIDO, req);
+
+    expect(mockService.getReserva).toHaveBeenCalledWith(UUID_VALIDO, {
+      id_persona: 'uuid-gerente',
+      rol: 'GERENTE',
     });
   });
 });
