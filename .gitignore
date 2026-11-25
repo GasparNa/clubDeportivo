@@ -52,3 +52,11 @@ infra/terraform/crash.log
 .obsidian
 
 club.pem
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Copias de skills Prisma generadas por prisma skills sync
+.claude/skills/prisma-*/
+.cursor/skills/prisma-*/
+.devin/skills/prisma-*/
